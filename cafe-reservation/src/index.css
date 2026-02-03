@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Force forest theme colors */
+:root[data-theme="forest"] {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-base-200 text-base-content;
+  min-height: 100vh;
+}
