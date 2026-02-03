@@ -48,77 +48,84 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-base-200 font-sans">
-      {/* NAVBAR DASHBOARD */}
-      <div className="bg-base-100 border-b border-base-300 px-6 py-4 flex justify-between items-center sticky top-0 z-30">
-         <h1 className="text-xl font-bold tracking-tight">Admin<span className="text-primary">Panel</span></h1>
-         <div className="flex gap-4">
-            <div className="join bg-base-200 p-1 rounded-lg">
-                <button onClick={() => setActiveTab('orders')} className={`join-item btn btn-sm border-none ${activeTab==='orders' ? 'bg-base-100 shadow-sm' : 'btn-ghost'}`}>Pesanan</button>
-                <button onClick={() => setActiveTab('menu')} className={`join-item btn btn-sm border-none ${activeTab==='menu' ? 'bg-base-100 shadow-sm' : 'btn-ghost'}`}>Menu</button>
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-green-50 font-sans">
+      {/* NAVBAR DASHBOARD - RESPONSIVE */}
+      <div className="bg-gradient-to-r from-emerald-700 to-green-600 shadow-lg px-4 sm:px-6 py-3 sm:py-5 flex justify-between items-center sticky top-0 z-30 gap-2">
+         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <div className="w-9 sm:w-10 h-9 sm:h-10 bg-white/20 rounded-full flex items-center justify-center text-lg sm:text-2xl flex-shrink-0">🌿</div>
+            <div className="min-w-0">
+              <h1 className="text-base sm:text-xl font-bold tracking-tight text-white truncate">Admin<span className="text-emerald-200">Panel</span></h1>
+              <p className="text-xs text-emerald-100 hidden sm:block">Cafe Tropis</p>
             </div>
-            <button onClick={() => auth.signOut()} className="btn btn-sm btn-circle btn-ghost text-error">✕</button>
+         </div>
+         <div className="flex gap-2 sm:gap-4 flex-shrink-0">
+            <div className="join bg-white/10 p-0.5 sm:p-1 rounded-lg backdrop-blur-md">
+                <button onClick={() => setActiveTab('orders')} className={`join-item btn btn-xs sm:btn-sm border-none text-xs sm:text-base ${activeTab==='orders' ? 'bg-white text-emerald-700 shadow-sm' : 'bg-transparent text-white hover:bg-white/20'}`}>📋 Orders</button>
+                <button onClick={() => setActiveTab('menu')} className={`join-item btn btn-xs sm:btn-sm border-none text-xs sm:text-base ${activeTab==='menu' ? 'bg-white text-emerald-700 shadow-sm' : 'bg-transparent text-white hover:bg-white/20'}`}>🍽️ Menu</button>
+            </div>
+            <button onClick={() => auth.signOut()} className="btn btn-circle btn-xs sm:btn-sm bg-white/20 hover:bg-white/30 border-white/30 text-white text-xs sm:text-base">✕</button>
          </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-6">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
         {/* TAB 1: ORDERS */}
         {activeTab === 'orders' && (
-          <div className="overflow-hidden rounded-2xl shadow-sm bg-base-100 border border-base-300">
-            <table className="table w-full">
-              <thead className="bg-base-200/50 text-base-content/60 uppercase text-[10px] tracking-wider">
-                <tr><th>Waktu</th><th>Pelanggan</th><th>Meja</th><th>Order</th><th>Total</th><th>Aksi</th></tr>
+          <div className="overflow-x-auto rounded-xl sm:rounded-2xl shadow-xl bg-white border-2 border-emerald-100">
+            <table className="table table-compact sm:table-normal w-full text-xs sm:text-base">
+              <thead className="bg-gradient-to-r from-emerald-100 to-green-100 text-emerald-800 uppercase text-[9px] sm:text-[10px] tracking-wider">
+                <tr><th className="px-1 sm:px-3 py-2">⏰</th><th className="px-1 sm:px-3 py-2">👤</th><th className="px-1 sm:px-3 py-2">🪑</th><th className="px-1 sm:px-3 py-2">🍽️</th><th className="px-1 sm:px-3 py-2">💰</th><th className="px-1 sm:px-3 py-2">⚡</th></tr>
               </thead>
               <tbody>
                 {reservations.map((res) => (
-                  <tr key={res.id} className="hover:bg-base-200/30 transition-colors">
-                    <td>
-                      <div className="font-bold text-sm">{res.date}</div>
-                      <div className="text-xs opacity-50">{res.time}</div>
-                      <div className={`badge badge-xs mt-1 ${res.status==='confirmed'?'badge-success':res.status==='rejected'?'badge-error':'badge-warning'}`}>{res.status}</div>
+                  <tr key={res.id} className="hover:bg-emerald-50/50 transition-colors border-b border-emerald-50 text-xs sm:text-sm">
+                    <td className="px-1 sm:px-3 py-2 sm:py-3">
+                      <div className="font-bold text-xs sm:text-sm text-emerald-800">{res.date}</div>
+                      <div className="text-xs text-gray-600">{res.time}</div>
+                      <div className={`badge badge-xs mt-1 ${res.status==='confirmed'?'bg-emerald-100 text-emerald-700 border-emerald-200':res.status==='rejected'?'bg-red-100 text-red-700 border-red-200':'bg-amber-100 text-amber-700 border-amber-200'}`}>{res.status}</div>
                     </td>
-                    <td>
-                        <div className="font-bold">{res.customerName}</div>
-                        <div className="text-xs opacity-60 font-mono">{res.customerPhone}</div>
+                    <td className="px-1 sm:px-3 py-2 sm:py-3">
+                        <div className="font-bold text-xs sm:text-sm text-gray-800 truncate">{res.customerName}</div>
+                        <div className="text-xs text-gray-600 font-mono truncate">{res.customerPhone}</div>
                     </td>
-                    <td>
-                        <input className="input input-xs bg-base-200 rounded w-16 text-center focus:bg-base-100 focus:w-24 transition-all" 
+                    <td className="px-1 sm:px-3 py-2 sm:py-3">
+                        <input className="input input-xs bg-emerald-50 border-emerald-200 rounded text-center focus:bg-white focus:border-emerald-500 w-12 sm:w-16 text-xs sm:text-sm" 
                             placeholder="-" defaultValue={res.tableNumber} onBlur={(e)=>handleUpdateMeja(res.id, e.target.value)} />
                     </td>
-                    <td>
-                        <div className="text-xs space-y-1">
-                            {res.items?.map((i,x)=><div key={x}><span className="font-bold">{i.qty}x</span> {i.name}</div>)}
+                    <td className="px-1 sm:px-3 py-2 sm:py-3">
+                        <div className="text-xs space-y-0.5">
+                            {res.items?.slice(0,2).map((i,x)=><div key={x} className="truncate"><span className="font-bold text-emerald-700">{i.qty}x</span> {i.name}</div>)}
+                            {res.items?.length > 2 && <div className="text-emerald-600 text-xs">+{res.items.length - 2} lagi</div>}
                         </div>
                     </td>
-                    <td className="font-bold text-primary">Rp {res.totalPrice?.toLocaleString()}</td>
-                    <td>
-                        {res.status === 'pending' && <div className="flex gap-1"><button onClick={()=>handleStatus(res.id,'confirmed')} className="btn btn-xs btn-square btn-success text-white">✓</button><button onClick={()=>handleStatus(res.id,'rejected')} className="btn btn-xs btn-square btn-error text-white">✕</button></div>}
+                    <td className="px-1 sm:px-3 py-2 sm:py-3 font-bold text-emerald-700 text-xs sm:text-sm whitespace-nowrap">Rp {res.totalPrice?.toLocaleString()}</td>
+                    <td className="px-1 sm:px-3 py-2 sm:py-3">
+                        {res.status === 'pending' && <div className="flex gap-0.5 sm:gap-1"><button onClick={()=>handleStatus(res.id,'confirmed')} className="btn btn-xs bg-emerald-600 hover:bg-emerald-700 text-white border-none text-xs">✓</button><button onClick={()=>handleStatus(res.id,'rejected')} className="btn btn-xs bg-red-500 hover:bg-red-600 text-white border-none text-xs">✕</button></div>}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {reservations.length===0 && <div className="p-10 text-center opacity-50">Belum ada pesanan.</div>}
+            {reservations.length===0 && <div className="p-4 sm:p-10 text-center text-gray-500 text-sm">Belum ada pesanan.</div>}
           </div>
         )}
 
         {/* TAB 2: MENU */}
         {activeTab === 'menu' && (
             <div>
-                <button onClick={()=>handleOpenModal(null)} className="btn btn-primary btn-sm mb-6 rounded-lg shadow-lg shadow-primary/20">+ Tambah Menu</button>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <button onClick={()=>handleOpenModal(null)} className="btn btn-xs sm:btn-sm mb-4 sm:mb-6 rounded-lg sm:rounded-xl shadow-lg bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white border-none text-xs sm:text-base">+ Tambah Menu Baru</button>
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-4">
                     {products.map((p) => (
-                        <div key={p.id} className="bg-base-100 p-4 rounded-2xl border border-base-200 hover:border-primary/30 transition-all shadow-sm group">
-                            <div className="flex justify-between items-start mb-2">
-                                <div className={`badge badge-xs ${p.isAvailable?'badge-success':'badge-error'} badge-outline`}>{p.isAvailable?'Ready':'Habis'}</div>
+                        <div key={p.id} className="bg-white p-3 sm:p-5 rounded-lg sm:rounded-2xl border-2 border-emerald-100 hover:border-emerald-400 transition-all shadow-md group">
+                            <div className="flex justify-between items-start mb-2 sm:mb-3">
+                                <div className={`badge badge-xs text-xs sm:text-xs ${p.isAvailable?'bg-emerald-100 text-emerald-700 border-emerald-200':'bg-red-100 text-red-700 border-red-200'}`}>{p.isAvailable?'✓':'✕'}</div>
                                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                                    <button onClick={()=>handleOpenModal(p)} className="btn btn-xs btn-square btn-ghost">✎</button>
-                                    <button onClick={()=>handleDeleteProduct(p.id)} className="btn btn-xs btn-square btn-ghost text-error">🗑</button>
+                                    <button onClick={()=>handleOpenModal(p)} className="btn btn-xs bg-emerald-50 hover:bg-emerald-100 border-emerald-200 text-emerald-700 rounded-lg">✎</button>
+                                    <button onClick={()=>handleDeleteProduct(p.id)} className="btn btn-xs bg-red-50 hover:bg-red-100 border-red-200 text-red-600 rounded-lg">🗑</button>
                                 </div>
                             </div>
-                            <h3 className="font-bold truncate">{p.name}</h3>
-                            <p className="text-xs opacity-50 mb-3">{p.category}</p>
-                            <p className="font-bold text-primary">Rp {p.price?.toLocaleString()}</p>
+                            <h3 className="font-bold truncate text-gray-800 text-sm sm:text-lg">{p.name}</h3>
+                            <p className="text-xs text-emerald-600 font-semibold mb-2 sm:mb-3 truncate">{p.category}</p>
+                            <p className="font-bold text-emerald-700 text-xs sm:text-base">Rp {p.price?.toLocaleString()}</p>
                         </div>
                     ))}
                 </div>
@@ -129,25 +136,25 @@ export default function AdminDashboard() {
       {/* MODAL (MINIMALIS) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-base-100 w-full max-w-sm rounded-3xl p-6 shadow-2xl animate-fade-in">
-                <h3 className="text-lg font-bold mb-4">{editingProduct ? 'Edit Menu' : 'Menu Baru'}</h3>
-                <form onSubmit={handleSaveProduct} className="space-y-3">
-                    <input className="input input-bordered w-full rounded-xl bg-base-200/50" placeholder="Nama Menu" required value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} />
-                    <div className="grid grid-cols-2 gap-3">
-                        <input type="number" className="input input-bordered w-full rounded-xl bg-base-200/50" placeholder="Harga" required value={formData.price} onChange={e=>setFormData({...formData, price:e.target.value})} />
-                        <select className="select select-bordered w-full rounded-xl bg-base-200/50" value={formData.category} onChange={e=>setFormData({...formData, category:e.target.value})}>
+            <div className="bg-white w-full max-w-sm rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl animate-fade-in border-2 border-emerald-100">
+                <h3 className="text-lg sm:text-xl font-bold mb-4 sm:mb-5 bg-gradient-to-r from-emerald-700 to-green-600 bg-clip-text text-transparent">{editingProduct ? '✏️ Edit Menu' : '➕ Menu Baru'}</h3>
+                <form onSubmit={handleSaveProduct} className="space-y-3 sm:space-y-4">
+                    <input className="input input-sm sm:input-md w-full rounded-lg sm:rounded-xl bg-emerald-50 border-2 border-emerald-200 focus:border-emerald-500 text-emerald-900 text-sm sm:text-base" placeholder="Nama Menu" required value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} />
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                        <input type="number" className="input input-sm sm:input-md w-full rounded-lg sm:rounded-xl bg-emerald-50 border-2 border-emerald-200 focus:border-emerald-500 text-emerald-900 text-sm sm:text-base" placeholder="Harga" required value={formData.price} onChange={e=>setFormData({...formData, price:e.target.value})} />
+                        <select className="select select-sm sm:select-md w-full rounded-lg sm:rounded-xl bg-emerald-50 border-2 border-emerald-200 focus:border-emerald-500 text-emerald-900 text-sm sm:text-base" value={formData.category} onChange={e=>setFormData({...formData, category:e.target.value})}>
                             <option>Coffee</option><option>Non-Coffee</option><option>Food</option><option>Snack</option>
                         </select>
                     </div>
-                    <div className="form-control">
-                        <label className="label cursor-pointer justify-start gap-3">
-                            <input type="checkbox" className="toggle toggle-success toggle-sm" checked={formData.isAvailable} onChange={e=>setFormData({...formData, isAvailable:e.target.checked})} />
-                            <span className="label-text text-xs">{formData.isAvailable ? 'Stok Tersedia' : 'Stok Habis'}</span>
+                    <div className="form-control bg-emerald-50 rounded-lg sm:rounded-xl p-2 sm:p-3 border-2 border-emerald-200">
+                        <label className="label cursor-pointer justify-start gap-2 sm:gap-3 py-1 px-0">
+                            <input type="checkbox" className="toggle bg-emerald-600 border-emerald-600 toggle-xs sm:toggle-sm" checked={formData.isAvailable} onChange={e=>setFormData({...formData, isAvailable:e.target.checked})} />
+                            <span className="label-text text-xs sm:text-sm font-medium text-emerald-800">{formData.isAvailable ? '✓ Stok Tersedia' : '✕ Stok Habis'}</span>
                         </label>
                     </div>
-                    <div className="flex gap-2 mt-4">
-                        <button type="button" onClick={()=>setIsModalOpen(false)} className="btn btn-ghost flex-1 rounded-xl">Batal</button>
-                        <button type="submit" className="btn btn-primary flex-1 rounded-xl shadow-lg shadow-primary/20">Simpan</button>
+                    <div className="flex gap-2 sm:gap-3 mt-4 sm:mt-6">
+                        <button type="button" onClick={()=>setIsModalOpen(false)} className="btn btn-xs sm:btn-sm flex-1 rounded-lg sm:rounded-xl bg-gray-100 hover:bg-gray-200 border-gray-300 text-gray-700 text-xs sm:text-base">Batal</button>
+                        <button type="submit" className="btn btn-xs sm:btn-sm flex-1 rounded-lg sm:rounded-xl shadow-lg bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white border-none text-xs sm:text-base">Simpan</button>
                     </div>
                 </form>
             </div>

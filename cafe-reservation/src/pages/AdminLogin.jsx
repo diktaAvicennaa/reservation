@@ -25,41 +25,42 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-base-200 p-4">
-      <div className="card w-full max-w-sm bg-base-100 shadow-xl border-none">
-        <div className="card-body text-center">
-          <div className="mb-4">
-            <h1 className="text-3xl font-bold text-primary">Cafe Tropis</h1>
-            <p className="text-xs opacity-60 tracking-widest uppercase mt-1">Admin Portal</p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-100 via-green-50 to-emerald-50 p-4">
+      <div className="card w-full max-w-sm bg-white shadow-2xl border-2 border-emerald-100">
+        <div className="card-body text-center p-4 sm:p-6">
+          <div className="mb-4 sm:mb-6">
+            <div className="w-14 sm:w-16 h-14 sm:h-16 bg-gradient-to-br from-emerald-600 to-green-600 rounded-full flex items-center justify-center text-2xl sm:text-3xl mx-auto mb-3 sm:mb-4 shadow-lg">🌿</div>
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-emerald-700 to-green-600 bg-clip-text text-transparent">Cafe Tropis</h1>
+            <p className="text-xs text-emerald-600 tracking-widest uppercase mt-1 font-bold">Admin Portal</p>
           </div>
           
-          {error && <div className="alert alert-error text-xs py-2 rounded-lg">{error}</div>}
+          {error && <div className="alert bg-red-50 text-red-600 border-2 border-red-200 text-sm py-2 sm:py-3 rounded-lg sm:rounded-xl">{error}</div>}
 
-          <form onSubmit={handleLogin} className="space-y-3 text-left mt-2">
+          <form onSubmit={handleLogin} className="space-y-3 sm:space-y-4 text-left mt-2 sm:mt-4">
             <div>
-              <label className="label text-xs font-bold opacity-70">Email Access</label>
+              <label className="label text-xs font-bold text-emerald-700 uppercase py-1 sm:py-2 px-0">🔐 Email Access</label>
               <input 
                 type="email" 
-                className="input input-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all" 
+                className="input input-sm sm:input-md bg-emerald-50 border-2 border-emerald-200 focus:border-emerald-500 focus:bg-white transition-all text-emerald-900 text-sm sm:text-base rounded-lg sm:rounded-xl" 
                 value={email} onChange={(e) => setEmail(e.target.value)} required 
               />
             </div>
 
             <div>
-              <label className="label text-xs font-bold opacity-70">Security Key</label>
+              <label className="label text-xs font-bold text-emerald-700 uppercase py-1 sm:py-2 px-0">🔑 Security Key</label>
               <input 
                 type="password" 
-                className="input input-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all" 
+                className="input input-sm sm:input-md bg-emerald-50 border-2 border-emerald-200 focus:border-emerald-500 focus:bg-white transition-all text-emerald-900 text-sm sm:text-base rounded-lg sm:rounded-xl" 
                 value={password} onChange={(e) => setPassword(e.target.value)} required 
               />
             </div>
 
-            <button type="submit" disabled={loading} className="btn btn-primary w-full mt-4 shadow-lg shadow-primary/30">
-              {loading ? <span className="loading loading-dots"></span> : "Masuk Dashboard"}
+            <button type="submit" disabled={loading} className="btn btn-sm sm:btn-md w-full mt-3 sm:mt-4 shadow-xl bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white border-none text-xs sm:text-base">
+              {loading ? <span className="loading loading-dots loading-xs sm:loading-sm"></span> : "Masuk Dashboard →"}
             </button>
           </form>
 
-          <a href="/" className="link link-hover text-xs text-base-content/40 mt-6">Kembali ke Menu Utama</a>
+          <a href="/" className="link link-hover text-xs sm:text-sm text-emerald-600 hover:text-emerald-700 mt-4 sm:mt-6 font-medium">← Kembali ke Menu Utama</a>
         </div>
       </div>
     </div>
