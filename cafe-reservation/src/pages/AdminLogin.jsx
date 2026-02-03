@@ -1,63 +1,65 @@
 import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../firebase";
+import { signInWithEmailAndPassword } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError(""); // Reset error lama
-    
+    setLoading(true);
+    setError("");
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      // Jika sukses, arahkan ke dashboard
       navigate("/admin/dashboard");
     } catch (err) {
-      console.error("Login failed:", err);
-      setError("Email atau password salah!");
+      setError("Email atau Password salah!");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-base-200">
-      <div className="card w-96 bg-base-100 shadow-xl">
-        <div className="card-body">
-          <h2 className="card-title justify-center mb-4">Login Admin</h2>
+    <div className="min-h-screen flex items-center justify-center bg-base-200 p-4">
+      <div className="card w-full max-w-sm bg-base-100 shadow-xl border-none">
+        <div className="card-body text-center">
+          <div className="mb-4">
+            <h1 className="text-3xl font-bold text-primary">Cafe Tropis</h1>
+            <p className="text-xs opacity-60 tracking-widest uppercase mt-1">Admin Portal</p>
+          </div>
           
-          {error && <div className="alert alert-error text-sm p-2 mb-2">{error}</div>}
-          
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="form-control">
-              <label className="label"><span className="label-text">Email</span></label>
+          {error && <div className="alert alert-error text-xs py-2 rounded-lg">{error}</div>}
+
+          <form onSubmit={handleLogin} className="space-y-3 text-left mt-2">
+            <div>
+              <label className="label text-xs font-bold opacity-70">Email Access</label>
               <input 
                 type="email" 
-                placeholder="admin@cafe.com" 
-                className="input input-bordered"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            
-            <div className="form-control">
-              <label className="label"><span className="label-text">Password</span></label>
-              <input 
-                type="password" 
-                placeholder="********" 
-                className="input input-bordered" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                className="input input-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all" 
+                value={email} onChange={(e) => setEmail(e.target.value)} required 
               />
             </div>
 
-            <div className="card-actions justify-end mt-4">
-              <button type="submit" className="btn btn-primary w-full">Masuk</button>
+            <div>
+              <label className="label text-xs font-bold opacity-70">Security Key</label>
+              <input 
+                type="password" 
+                className="input input-bordered w-full bg-base-200/50 focus:bg-base-100 transition-all" 
+                value={password} onChange={(e) => setPassword(e.target.value)} required 
+              />
             </div>
+
+            <button type="submit" disabled={loading} className="btn btn-primary w-full mt-4 shadow-lg shadow-primary/30">
+              {loading ? <span className="loading loading-dots"></span> : "Masuk Dashboard"}
+            </button>
           </form>
+
+          <a href="/" className="link link-hover text-xs text-base-content/40 mt-6">Kembali ke Menu Utama</a>
         </div>
       </div>
     </div>
