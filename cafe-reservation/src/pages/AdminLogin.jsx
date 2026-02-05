@@ -25,11 +25,11 @@ export default function AdminLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-base-200 p-4 font-sans text-base-content">
-      <div className="card w-full max-w-sm bg-base-100 shadow-2xl border border-white/5">
+    <div className="min-h-screen flex items-center justify-center bg-base-200 p-4 font-sans text-neutral">
+      <div className="card w-full max-w-sm bg-base-100 shadow-2xl border-t-8 border-primary">
         <div className="card-body text-center p-8">
           <div className="mb-6">
-            <h1 className="text-4xl font-black tracking-tight text-white mb-1">Cafe Tropis 🌵</h1>
+            <h1 className="text-4xl font-black tracking-tight text-primary mb-1">Cafe Tropis 🌵</h1>
             <p className="text-xs uppercase tracking-[0.3em] opacity-50 font-bold">Admin Portal</p>
           </div>
           
@@ -40,7 +40,7 @@ export default function AdminLogin() {
               <label className="label text-xs font-bold uppercase opacity-60">Email Access</label>
               <input 
                 type="email" 
-                className="input input-lg input-bordered w-full bg-base-200 focus:bg-base-300 focus:border-primary transition-all rounded-2xl font-bold" 
+                className="input input-lg input-bordered w-full bg-base-200 focus:bg-white focus:border-primary transition-all rounded-2xl font-bold" 
                 value={email} onChange={(e) => setEmail(e.target.value)} required 
               />
             </div>
@@ -49,7 +49,7 @@ export default function AdminLogin() {
               <label className="label text-xs font-bold uppercase opacity-60">Security Key</label>
               <input 
                 type="password" 
-                className="input input-lg input-bordered w-full bg-base-200 focus:bg-base-300 focus:border-primary transition-all rounded-2xl font-bold" 
+                className="input input-lg input-bordered w-full bg-base-200 focus:bg-white focus:border-primary transition-all rounded-2xl font-bold" 
                 value={password} onChange={(e) => setPassword(e.target.value)} required 
               />
             </div>
@@ -59,7 +59,7 @@ export default function AdminLogin() {
             </button>
           </form>
 
-          <a href="/" className="btn btn-link btn-xs no-underline text-white/40 hover:text-white mt-6 font-bold">← Kembali ke Halaman Depan</a>
+          <a href="/" className="btn btn-link btn-xs no-underline text-neutral/40 hover:text-primary mt-6 font-bold">← Kembali ke Halaman Depan</a>
         </div>
       </div>
     </div>

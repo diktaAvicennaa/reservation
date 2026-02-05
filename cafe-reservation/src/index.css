@@ -7,6 +7,16 @@
   color-scheme: dark;
 }
 
+/* Enforce dark-green theme tokens for all primary UI colors */
+:root[data-theme="tropis"] {
+  --p: 163 88% 20%;
+  --pc: 0 0% 100%;
+  --s: 163 88% 20%;
+  --sc: 0 0% 100%;
+  --a: 163 88% 20%;
+  --ac: 0 0% 100%;
+}
+
 body {
   @apply bg-base-200 text-base-content;
   min-height: 100vh;

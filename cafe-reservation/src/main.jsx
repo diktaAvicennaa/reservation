@@ -3,12 +3,9 @@ import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 import './index.css'
 
-// --- JURUS PAKSA TEMA FOREST ---
-// Hapus ingatan lama browser
+// --- JURUS PAKSA TEMA TROPIS ---
 localStorage.removeItem("theme");
-
-// Paksa atribut HTML jadi forest sekarang juga
-document.documentElement.setAttribute('data-theme', 'forest');
+document.documentElement.setAttribute('data-theme', 'tropis');
 document.documentElement.classList.add('bg-base-200'); 
 // -------------------------------
 
