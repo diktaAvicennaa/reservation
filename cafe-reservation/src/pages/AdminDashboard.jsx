@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { db, auth } from "../firebase";
-import { collection, getDocs, updateDoc, doc, deleteDoc, addDoc } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, deleteDoc, addDoc, query, where } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
+import { signOut } from "firebase/auth";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -11,59 +12,110 @@ export default function AdminDashboard() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [formData, setFormData] = useState({ name: "", price: "", category: "Coffee", isAvailable: true });
+  const [user, setUser] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user) => { if (!user) navigate("/admin"); });
-    fetchReservations();
-    fetchProducts();
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+      if (!currentUser) {
+        navigate("/admin");
+      } else {
+        setUser(currentUser);
+        fetchReservations();
+        fetchProducts();
+      }
+    });
     return () => unsubscribe();
   }, [navigate]);
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate("/admin");
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
   const fetchReservations = async () => {
-    const s = await getDocs(collection(db, "reservations"));
-    setReservations(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.createdAt - a.createdAt));
+    try {
+      const s = await getDocs(collection(db, "reservations"));
+      setReservations(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.createdAt - a.createdAt));
+      setError(null);
+    } catch (err) {
+      setError("❌ Akses ditolak: " + err.message);
+      console.error("Fetch reservations error:", err);
+    }
   };
   
   const fetchProducts = async () => {
-    const s = await getDocs(collection(db, "products"));
-    setProducts(s.docs.map(d => ({ id: d.id, ...d.data() })));
+    try {
+      const s = await getDocs(collection(db, "products"));
+      setProducts(s.docs.map(d => ({ id: d.id, ...d.data() })));
+      setError(null);
+    } catch (err) {
+      setError("❌ Akses ditolak: " + err.message);
+      console.error("Fetch products error:", err);
+    }
   };
 
   const handleStatus = async (id, status) => { 
-    await updateDoc(doc(db, "reservations", id), { status }); 
-    fetchReservations(); 
+    try {
+      await updateDoc(doc(db, "reservations", id), { status }); 
+      fetchReservations(); 
+    } catch (err) {
+      setError("❌ Gagal update status: " + err.message);
+    }
   };
 
   const handleUpdateMeja = async (id, val) => { 
-    if(val) await updateDoc(doc(db, "reservations", id), { tableNumber: val }); 
+    try {
+      if(val) await updateDoc(doc(db, "reservations", id), { tableNumber: val }); 
+    } catch (err) {
+      setError("❌ Gagal update meja: " + err.message);
+    }
   };
 
   const handleDeleteReservation = async (id) => { 
     if(confirm("Hapus pesanan ini?")) { 
-      await deleteDoc(doc(db, "reservations", id)); 
-      fetchReservations(); 
+      try {
+        await deleteDoc(doc(db, "reservations", id)); 
+        fetchReservations(); 
+      } catch (err) {
+        setError("❌ Gagal hapus pesanan: " + err.message);
+      }
     }
   };
 
   const handleDeleteProduct = async (id) => { 
     if(confirm("Hapus item menu ini?")) { 
-      await deleteDoc(doc(db, "products", id)); 
-      fetchProducts(); 
+      try {
+        await deleteDoc(doc(db, "products", id)); 
+        fetchProducts(); 
+      } catch (err) {
+        setError("❌ Gagal hapus menu: " + err.message);
+      }
     }
   };
   
   const handleSaveProduct = async (e) => {
     e.preventDefault();
-    const payload = { 
-      name: formData.name, 
-      price: Number(formData.price), 
-      category: formData.category, 
-      isAvailable: formData.isAvailable 
-    };
-    if (editingProduct) await updateDoc(doc(db, "products", editingProduct.id), payload);
-    else await addDoc(collection(db, "products"), payload);
-    setIsModalOpen(false); 
-    fetchProducts();
+    try {
+      const payload = { 
+        name: formData.name, 
+        price: Number(formData.price), 
+        category: formData.category, 
+        isAvailable: formData.isAvailable,
+        updatedAt: new Date()
+      };
+      if (editingProduct) await updateDoc(doc(db, "products", editingProduct.id), payload);
+      else await addDoc(collection(db, "products"), { ...payload, createdAt: new Date() });
+      setIsModalOpen(false); 
+      fetchProducts();
+      setError(null);
+    } catch (err) {
+      setError("❌ Gagal simpan menu: " + err.message);
+    }
   };
 
   const handleOpenModal = (p) => {
@@ -77,8 +129,18 @@ export default function AdminDashboard() {
       {/* NAVBAR */}
       <div className="admin-navbar">
          <h1><span>🌵</span> Admin Panel - Cafe Tropis</h1>
-         <button onClick={() => auth.signOut()} className="btn btn-danger">Keluar</button>
+         <div style={{display:'flex', gap:'15px', alignItems:'center'}}>
+           <span style={{fontSize:'0.9em', color:'#666'}}>👤 {user?.email}</span>
+           <button onClick={handleLogout} className="btn btn-danger">Keluar</button>
+         </div>
       </div>
+
+      {/* ERROR MESSAGE */}
+      {error && (
+        <div style={{padding:'15px', margin:'15px', backgroundColor:'#fee', border:'1px solid #f99', borderRadius:'5px', color:'#c00'}}>
+          {error}
+        </div>
+      )}
 
       <div className="admin-content">
         {/* TAB NAVIGATION */}

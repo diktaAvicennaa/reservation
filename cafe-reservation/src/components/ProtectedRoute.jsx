@@ -16,8 +16,12 @@ export default function ProtectedRoute({ element }) {
   }, []);
 
   if (loading) {
-    return <div className="full-screen-center"><p>Loading...</p></div>;
+    return <div className="full-screen-center"><p>Mengecek izin akses...</p></div>;
   }
 
-  return user ? element : <Navigate to="/admin" replace />;
+  if (!user) {
+    return <Navigate to="/admin" replace />;
+  }
+
+  return element;
 }
