@@ -62,10 +62,10 @@ export default function AdminDashboard() {
         {/* TABS */}
         <div className="flex mb-4">
           <button onClick={() => setActiveTab('orders')} className={`btn ${activeTab === 'orders' ? 'btn-primary' : 'btn-ghost'}`} style={{flex:1}}>
-            📋 Daftar Pesanan
+            Daftar Pesanan
           </button>
           <button onClick={() => setActiveTab('menu')} className={`btn ${activeTab === 'menu' ? 'btn-primary' : 'btn-ghost'}`} style={{flex:1}}>
-            🍔 Kelola Menu
+            Kelola Menu
           </button>
         </div>
 
