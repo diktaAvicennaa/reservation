@@ -202,8 +202,29 @@ export default function BookingPage() {
             <h2 className="text-lg">Kapan mau mampir?</h2>
             <p className="mb-4" style={{color:'#666'}}>Atur jadwal kunjunganmu.</p>
             <div className="card text-left">
-              <div className="form-group"><label className="label">Tanggal</label><input type="date" className="input" value={date} min={new Date().toISOString().split("T")[0]} onChange={(e) => setDate(e.target.value)} /></div>
-              <div className="form-group"><label className="label"> Jam</label><input type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} /></div>
+              <div className="form-group">
+                <label className="label" htmlFor="visit-date">Tanggal</label>
+                <input
+                  id="visit-date"
+                  name="visitDate"
+                  type="date"
+                  className="input"
+                  value={date}
+                  min={new Date().toISOString().split("T")[0]}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label className="label" htmlFor="visit-time"> Jam</label>
+                <input
+                  id="visit-time"
+                  name="visitTime"
+                  type="time"
+                  className="input"
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                />
+              </div>
             </div>
             <button onClick={() => setTime("17:45")} className="btn btn-ghost btn-block mb-4" style={{border:'2px solid #047857', color:'#047857'}}>🌙 Buka Puasa (17:45)</button>
             <button onClick={handleStep1Submit} className="btn btn-primary btn-block">LANJUT PILIH MENU ➔</button>
@@ -236,12 +257,15 @@ export default function BookingPage() {
             {/* SEARCH INPUT */}
             <div className="form-group mt-3">
               <input 
+                id="menu-search"
+                name="menuSearch"
                 type="text"
                 className="input"
                 placeholder="Cari menu ..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{width:'100%'}}
+                aria-label="Cari menu"
               />
             </div>
 
@@ -256,11 +280,14 @@ export default function BookingPage() {
                             </div>
                             {/* Input Catatan Paket */}
                             <input 
+                                id={`bundle-note-${idx}`}
+                                name={`bundleNote-${idx}`}
                                 className="input" 
                                 style={{marginTop:'10px', padding:'8px', fontSize:'0.9em', background:'#f9f9f9'}}
                                 placeholder="Catatan Paket..."
                                 value={b.note}
                                 onChange={(e) => updateBundleNote(idx, e.target.value)}
+                                aria-label="Catatan paket"
                             />
                         </div>
                     ))}
@@ -297,11 +324,14 @@ export default function BookingPage() {
                     {cart[item.id] > 0 && (
                         <div style={{marginTop:'10px'}}>
                             <input 
+                                id={`item-note-${item.id}`}
+                                name={`itemNote-${item.id}`}
                                 className="input" 
                                 style={{padding:'8px', fontSize:'0.9em', background:'#f9f9f9'}}
                                 placeholder={`Catatan untuk ${item.name}...`}
                                 value={itemNotes[item.id] || ""}
                                 onChange={(e) => handleItemNoteChange(item.id, e.target.value)}
+                                aria-label={`Catatan untuk ${item.name}`}
                             />
                         </div>
                     )}
@@ -388,12 +418,18 @@ export default function BookingPage() {
                 </div>
                 
                 <div className="form-group">
-                   <label className="label">👤 Nama Lengkap</label>
-                   <input required className="input" placeholder="Contoh: Budi"
-                      onChange={(e) => setCustomer({...customer, name: e.target.value})} />
+                   <label className="label" htmlFor="customer-name">👤 Nama Lengkap</label>
+                   <input
+                      id="customer-name"
+                      name="customerName"
+                      required
+                      className="input"
+                      placeholder="Contoh: Budi"
+                      onChange={(e) => setCustomer({...customer, name: e.target.value})}
+                   />
                 </div>
                 
-                {/* Note global dihapus karena sudah ada per item, kecuali mau nambah info umum */}
+                {/* Hapus pilihan makanan/minuman di langkah 3 */}
             </div>
 
             <div className="flex mt-4">
@@ -421,9 +457,32 @@ export default function BookingPage() {
       {isPromoOpen && (
         <div className="modal-overlay">
             <div className="modal-content">
-                <div className="flex justify-between mb-4"><h3>Pilih Menu Paket</h3><button onClick={() => setIsPromoOpen(false)} className="btn btn-ghost" style={{padding:'5px'}}>✕</button></div>
-                <div className="form-group"><label className="label">Makanan</label><select className="select" onChange={(e) => setPromoSelection({...promoSelection, food: e.target.value})}><option value="">-- Pilih Makanan --</option>{menuItems.filter(i => i.category === 'Food').map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div>
-                <div className="form-group"><label className="label">Minuman</label><select className="select" onChange={(e) => setPromoSelection({...promoSelection, drink: e.target.value})}><option value="">-- Pilih Minuman --</option>{menuItems.filter(i => i.category === 'Coffee' || i.category === 'Non-Coffee').map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div>
+                <div className="flex justify-between mb-4">
+                  <h3>Pilih Menu Paket</h3>
+                  <button onClick={() => setIsPromoOpen(false)} className="btn btn-ghost" style={{padding:'5px'}}>✕</button>
+                </div>
+                <div className="form-group">
+                  <label className="label" htmlFor="promo-food">Makanan</label>
+                  <select
+                    id="promo-food"
+                    name="promoFood"
+                    className="select"
+                    onChange={(e) => setPromoSelection({...promoSelection, food: e.target.value})}>
+                    <option value="">-- Pilih Makanan --</option>
+                    {menuItems.filter(i => i.category === 'Food').map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="label" htmlFor="promo-drink">Minuman</label>
+                  <select
+                    id="promo-drink"
+                    name="promoDrink"
+                    className="select"
+                    onChange={(e) => setPromoSelection({...promoSelection, drink: e.target.value})}>
+                    <option value="">-- Pilih Minuman --</option>
+                    {menuItems.filter(i => i.category === 'Coffee' || i.category === 'Non-Coffee').map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                  </select>
+                </div>
                 <button onClick={handleAddBundle} className="btn btn-primary btn-block mt-4">SIMPAN PAKET</button>
             </div>
         </div>

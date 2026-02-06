@@ -8,9 +8,11 @@ export default function OrderList() {
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [products, setProducts] = useState([]);
 
   useEffect(() => {
     fetchReservations();
+    fetchProducts();
   }, []);
 
   const fetchReservations = async () => {
@@ -26,6 +28,42 @@ export default function OrderList() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchProducts = async () => {
+    try {
+      const s = await getDocs(collection(db, "products"));
+      setProducts(s.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (err) {
+      console.error("Error fetching products:", err);
+    }
+  };
+
+  const productCategoryMap = new Map(
+    products
+      .filter(p => p?.name)
+      .map(p => [p.name.toLowerCase(), p.category])
+  );
+
+  const normalizeCategory = (cat = "") =>
+    String(cat).toLowerCase().replace(/\s|_/g, "-");
+
+  const getCategoryRank = (cat = "") => {
+    const c = normalizeCategory(cat);
+    if (c === "coffee" || c === "non-coffee" || c === "non-coffe") return 0; // minuman
+    if (c === "snack") return 1;
+    if (c === "food") return 2;
+    return 99;
+  };
+
+  const sortItemsByCategory = (items = []) => {
+    return [...items].sort((a, b) => {
+      const aCat = a?.category || a?.cat || a?.type || productCategoryMap.get(a?.name?.toLowerCase());
+      const bCat = b?.category || b?.cat || b?.type || productCategoryMap.get(b?.name?.toLowerCase());
+      const aRank = getCategoryRank(aCat);
+      const bRank = getCategoryRank(bCat);
+      return aRank - bRank;
+    });
   };
 
   return (
@@ -82,7 +120,9 @@ export default function OrderList() {
                         <b>{res.tableNumber || '-'}</b>
                       </td>
                       <td>
-                        {res.items?.map((i,x)=><div key={x} className="force-nowrap"><b>{i.qty}x</b> {i.name}</div>)}
+                        {sortItemsByCategory(res.items)?.map((i,x)=>(
+                          <div key={x} className="force-nowrap"><b>{i.qty}x</b> {i.name}</div>
+                        ))}
                         {res.customerNotes && <div className="badge badge-yellow" style={{marginTop:'5px'}}>📝 {res.customerNotes}</div>}
                       </td>
                       <td className="price-column">Rp {res.totalPrice?.toLocaleString()}</td>
@@ -126,7 +166,7 @@ export default function OrderList() {
                     <div className="order-label">Pesanan</div>
                     <div className="order-value">
                       <div className="order-items">
-                        {res.items?.map((i, x) => (
+                        {sortItemsByCategory(res.items)?.map((i, x) => (
                           <div key={x} className="order-item"><b>{i.qty}x</b> {i.name}</div>
                         ))}
                       </div>

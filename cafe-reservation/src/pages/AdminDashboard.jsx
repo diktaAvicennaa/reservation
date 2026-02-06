@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { db, auth } from "../firebase";
 import { collection, getDocs, updateDoc, doc, deleteDoc, addDoc, query, where } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
@@ -14,6 +14,13 @@ export default function AdminDashboard() {
   const [formData, setFormData] = useState({ name: "", price: "", category: "Coffee", isAvailable: true });
   const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
+  const productCategoryMap = useMemo(() => {
+    const map = new Map();
+    products.forEach((p) => {
+      if (p?.name) map.set(p.name.toLowerCase(), p.category);
+    });
+    return map;
+  }, [products]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((currentUser) => {
@@ -179,6 +186,8 @@ export default function AdminDashboard() {
         {/* SEARCH BAR */}
         <div style={{padding:'15px', marginBottom:'15px'}}>
           <input 
+            id="admin-search"
+            name="adminSearch"
             type="text"
             placeholder={activeTab === 'orders' ? 'Cari nama, nomor HP, meja, atau status...' : ' Cari nama menu atau kategori...'}
             className="input-field"
@@ -219,6 +228,8 @@ export default function AdminDashboard() {
                     </td>
                     <td className="table-center">
                         <input 
+                          id={`table-number-${res.id}`}
+                          name={`tableNumber-${res.id}`}
                           className="input-meja" 
                           defaultValue={res.tableNumber || ""} 
                           onBlur={(e)=>handleUpdateMeja(res.id, e.target.value)}
@@ -226,7 +237,7 @@ export default function AdminDashboard() {
                         />
                     </td>
                     <td>
-                        {res.items?.map((i,x)=><div key={x} className="force-nowrap"><b>{i.qty}x</b> {i.name}</div>)}
+                        {sortItemsByCategory(res.items, productCategoryMap)?.map((i,x)=><div key={x} className="force-nowrap"><b>{i.qty}x</b> {i.name}</div>)}
                         {res.customerNotes && <div className="badge badge-yellow" style={{marginTop:'5px'}}>📝 {res.customerNotes}</div>}
                     </td>
                     <td className="price-column">Rp {res.totalPrice?.toLocaleString()}</td>
@@ -284,16 +295,37 @@ export default function AdminDashboard() {
             <h3>{editingProduct ? '✏️ Edit Menu' : '➕ Menu Baru'}</h3>
             <form onSubmit={handleSaveProduct} className="flex-col gap-2">
               <div className="form-group">
-                <label>Nama Menu</label>
-                <input className="input-field" required value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} />
+                <label htmlFor="menu-name">Nama Menu</label>
+                <input
+                  id="menu-name"
+                  name="menuName"
+                  className="input-field"
+                  required
+                  value={formData.name}
+                  onChange={e=>setFormData({...formData, name:e.target.value})}
+                />
               </div>
               <div className="form-group">
-                <label>Harga (Rp)</label>
-                <input type="number" className="input-field" required value={formData.price} onChange={e=>setFormData({...formData, price:e.target.value})} />
+                <label htmlFor="menu-price">Harga (Rp)</label>
+                <input
+                  id="menu-price"
+                  name="menuPrice"
+                  type="number"
+                  className="input-field"
+                  required
+                  value={formData.price}
+                  onChange={e=>setFormData({...formData, price:e.target.value})}
+                />
               </div>
               <div className="form-group">
-                <label>Kategori</label>
-                <select className="input-field" value={formData.category} onChange={e=>setFormData({...formData, category:e.target.value})}>
+                <label htmlFor="menu-category">Kategori</label>
+                <select
+                  id="menu-category"
+                  name="menuCategory"
+                  className="input-field"
+                  value={formData.category}
+                  onChange={e=>setFormData({...formData, category:e.target.value})}
+                >
                   <option>Coffee</option>
                   <option>Non-Coffee</option>
                   <option>Food</option>
@@ -302,7 +334,14 @@ export default function AdminDashboard() {
               </div>
               <div className="flex justify-between mt-2" style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
                 <span style={{fontWeight:'bold'}}>Tersedia?</span>
-                <input type="checkbox" style={{width:'20px', height:'20px'}} checked={formData.isAvailable} onChange={e=>setFormData({...formData, isAvailable:e.target.checked})} />
+                <input
+                  id="menu-available"
+                  name="menuAvailable"
+                  type="checkbox"
+                  style={{width:'20px', height:'20px'}}
+                  checked={formData.isAvailable}
+                  onChange={e=>setFormData({...formData, isAvailable:e.target.checked})}
+                />
               </div>
               <div className="flex gap-2 mt-4" style={{display:'flex', gap:'10px', marginTop:'20px'}}>
                 <button type="button" onClick={()=>setIsModalOpen(false)} className="btn btn-ghost" style={{flex:1, border:'1px solid #ccc'}}>Batal</button>
@@ -315,3 +354,24 @@ export default function AdminDashboard() {
     </div>
   );
 }
+
+const normalizeCategory = (cat = "") =>
+  String(cat).toLowerCase().replace(/\s|_/g, "-");
+
+const getCategoryRank = (cat = "") => {
+  const c = normalizeCategory(cat);
+  if (c === "coffee" || c === "non-coffee" || c === "non-coffe") return 0; // minuman
+  if (c === "snack") return 1;
+  if (c === "food") return 2;
+  return 99;
+};
+
+const sortItemsByCategory = (items = [], categoryMap = new Map()) => {
+  return [...items].sort((a, b) => {
+    const aCat = a?.category || a?.cat || a?.type || categoryMap.get(a?.name?.toLowerCase());
+    const bCat = b?.category || b?.cat || b?.type || categoryMap.get(b?.name?.toLowerCase());
+    const aRank = getCategoryRank(aCat);
+    const bRank = getCategoryRank(bCat);
+    return aRank - bRank;
+  });
+};
