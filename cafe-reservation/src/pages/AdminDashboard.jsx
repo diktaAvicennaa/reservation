@@ -120,12 +120,36 @@ export default function AdminDashboard() {
       setError("❌ Gagal simpan menu: " + err.message);
     }
   };
+  const [searchQuery, setSearchQuery] = useState("");
+  
 
   const handleOpenModal = (p) => {
     setEditingProduct(p);
     setFormData(p ? { name: p.name, price: p.price, category: p.category, isAvailable: p.isAvailable } : { name: "", price: "", category: "Coffee", isAvailable: true });
     setIsModalOpen(true);
   };
+
+  // Filter reservations berdasarkan search
+  const filteredReservations = reservations.filter(res => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      res.customerName?.toLowerCase().includes(query) ||
+      res.customerPhone?.includes(query) ||
+      res.tableNumber?.toLowerCase().includes(query) ||
+      res.status?.toLowerCase().includes(query)
+    );
+  });
+
+  // Filter products berdasarkan search
+  const filteredProducts = products.filter(p => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      p.name?.toLowerCase().includes(query) ||
+      p.category?.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <div className="admin-container">
@@ -152,6 +176,18 @@ export default function AdminDashboard() {
           <button onClick={() => setActiveTab('menu')} className={activeTab === 'menu' ? 'active' : ''}>Kelola Menu</button>
         </div>
 
+        {/* SEARCH BAR */}
+        <div style={{padding:'15px', marginBottom:'15px'}}>
+          <input 
+            type="text"
+            placeholder={activeTab === 'orders' ? 'Cari nama, nomor HP, meja, atau status...' : ' Cari nama menu atau kategori...'}
+            className="input-field"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{width:'100%', padding:'12px'}}
+          />
+        </div>
+
         {/* TAB 1: DAFTAR PESANAN */}
         {activeTab === 'orders' && (
           <div className="table-container">
@@ -167,7 +203,7 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {reservations.map((res) => (
+                {filteredReservations.map((res) => (
                   <tr key={res.id}>
                     <td className="force-nowrap">
                       <div style={{fontWeight:'bold'}}>{res.time}</div>
@@ -208,7 +244,7 @@ export default function AdminDashboard() {
                 ))}
               </tbody>
             </table>
-            {reservations.length === 0 && <div className="empty-state">Belum ada pesanan masuk.</div>}
+            {filteredReservations.length === 0 && <div className="empty-state">Tidak ada pesanan ditemukan.</div>}
           </div>
         )}
 
@@ -217,7 +253,7 @@ export default function AdminDashboard() {
           <div className="menu-section">
             <button onClick={() => handleOpenModal(null)} className="btn btn-primary w-full mb-4" style={{width:'100%', padding:'15px'}}>+ TAMBAH MENU BARU</button>
             <div className="menu-grid">
-              {products.map((p) => (
+              {filteredProducts.map((p) => (
                 <div key={p.id} className="menu-card">
                   <div className="menu-info">
                     <h3>{p.name}</h3>
@@ -236,6 +272,7 @@ export default function AdminDashboard() {
                 </div>
               ))}
             </div>
+            {filteredProducts.length === 0 && <div className="empty-state">Tidak ada menu ditemukan.</div>}
           </div>
         )}
       </div>

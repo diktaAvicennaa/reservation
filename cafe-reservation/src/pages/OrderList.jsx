@@ -55,45 +55,94 @@ export default function OrderList() {
         {/* DAFTAR PESANAN READ-ONLY */}
         {!loading && !error && (
           <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th className="force-nowrap">Waktu</th>
-                  <th className="table-center">Pelanggan</th>
-                  <th className="table-center">Meja</th>
-                  <th>Pesanan</th>
-                  <th className="price-column">Total</th>
-                  <th className="table-center">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reservations.map((res) => (
-                  <tr key={res.id}>
-                    <td className="force-nowrap">
-                      <div style={{fontWeight:'bold'}}>{res.time}</div>
-                      <small>{res.date}</small>
-                    </td>
-                    <td className="table-center force-nowrap">
-                      <b>{res.customerName}</b><br/>
-                      <small>{res.customerPhone}</small>
-                    </td>
-                    <td className="table-center">
-                      <b>{res.tableNumber || '-'}</b>
-                    </td>
-                    <td>
-                      {res.items?.map((i,x)=><div key={x} className="force-nowrap"><b>{i.qty}x</b> {i.name}</div>)}
-                      {res.customerNotes && <div className="badge badge-yellow" style={{marginTop:'5px'}}>📝 {res.customerNotes}</div>}
-                    </td>
-                    <td className="price-column">Rp {res.totalPrice?.toLocaleString()}</td>
-                    <td className="table-center">
-                      <span className={`badge ${res.status==='confirmed'?'badge-green':res.status==='rejected'?'badge-red':'badge-yellow'}`}>
-                        {res.status}
-                      </span>
-                    </td>
+            <div className="order-list-desktop">
+              <table>
+                <thead>
+                  <tr>
+                    <th className="force-nowrap">Waktu</th>
+                    <th className="table-center">Pelanggan</th>
+                    <th className="table-center">Meja</th>
+                    <th>Pesanan</th>
+                    <th className="price-column">Total</th>
+                    <th className="table-center">Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {reservations.map((res) => (
+                    <tr key={res.id}>
+                      <td className="force-nowrap">
+                        <div style={{fontWeight:'bold'}}>{res.time}</div>
+                        <small>{res.date}</small>
+                      </td>
+                      <td className="table-center force-nowrap">
+                        <b>{res.customerName}</b><br/>
+                        <small>{res.customerPhone}</small>
+                      </td>
+                      <td className="table-center">
+                        <b>{res.tableNumber || '-'}</b>
+                      </td>
+                      <td>
+                        {res.items?.map((i,x)=><div key={x} className="force-nowrap"><b>{i.qty}x</b> {i.name}</div>)}
+                        {res.customerNotes && <div className="badge badge-yellow" style={{marginTop:'5px'}}>📝 {res.customerNotes}</div>}
+                      </td>
+                      <td className="price-column">Rp {res.totalPrice?.toLocaleString()}</td>
+                      <td className="table-center">
+                        <span className={`badge ${res.status==='confirmed'?'badge-green':res.status==='rejected'?'badge-red':'badge-yellow'}`}>
+                          {res.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="order-list-mobile">
+              {reservations.map((res) => (
+                <div className="order-card" key={res.id}>
+                  <div className="order-card-header">
+                    <div>
+                      <div className="order-time">{res.time}</div>
+                      <div className="order-date">{res.date}</div>
+                    </div>
+                    <span className={`badge ${res.status==='confirmed'?'badge-green':res.status==='rejected'?'badge-red':'badge-yellow'}`}>
+                      {res.status}
+                    </span>
+                  </div>
+
+                  <div className="order-card-row">
+                    <div className="order-label">Pelanggan</div>
+                    <div className="order-value">
+                      <b>{res.customerName}</b> <span className="order-sep">•</span> {res.customerPhone}
+                    </div>
+                  </div>
+
+                  <div className="order-card-row">
+                    <div className="order-label">Meja</div>
+                    <div className="order-value"><b>{res.tableNumber || '-'}</b></div>
+                  </div>
+
+                  <div className="order-card-row">
+                    <div className="order-label">Pesanan</div>
+                    <div className="order-value">
+                      <div className="order-items">
+                        {res.items?.map((i, x) => (
+                          <div key={x} className="order-item"><b>{i.qty}x</b> {i.name}</div>
+                        ))}
+                      </div>
+                      {res.customerNotes && (
+                        <div className="badge badge-yellow order-notes">📝 {res.customerNotes}</div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="order-card-footer">
+                    <div className="order-total">Rp {res.totalPrice?.toLocaleString()}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
             {reservations.length === 0 && <div className="empty-state">Belum ada pesanan masuk.</div>}
           </div>
         )}
