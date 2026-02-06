@@ -21,7 +21,7 @@ export default function AdminDashboard() {
         navigate("/admin");
       } else {
         setUser(currentUser);
-        fetchReservations();
+        fetchReservations(); // Hanya fetch SETELAH login
         fetchProducts();
       }
     });
