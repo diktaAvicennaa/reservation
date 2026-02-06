@@ -3,6 +3,7 @@ import BookingPage from "./pages/BookingPage";
 import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import OrderList from "./pages/OrderList";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 export default function App() {
   return (
@@ -11,7 +12,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<BookingPage />} />
         <Route path="/admin" element={<AdminLogin />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/admin/dashboard" element={<ProtectedRoute element={<AdminDashboard />} />} />
         <Route path="/list" element={<OrderList />} />
       </Routes>
     </BrowserRouter>
