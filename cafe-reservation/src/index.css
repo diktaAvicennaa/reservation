@@ -1,23 +1,126 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
-
-/* Force forest theme colors */
-:root[data-theme="forest"] {
-  color-scheme: dark;
-}
-
-/* Enforce dark-green theme tokens for all primary UI colors */
-:root[data-theme="tropis"] {
-  --p: 163 88% 20%;
-  --pc: 0 0% 100%;
-  --s: 163 88% 20%;
-  --sc: 0 0% 100%;
-  --a: 163 88% 20%;
-  --ac: 0 0% 100%;
-}
-
+/* Reset Dasar */
 body {
-  @apply bg-base-200 text-base-content;
-  min-height: 100vh;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #f4f7f6;
+  color: #333;
 }
+
+/* Layout Helpers */
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.full-screen-center {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #e0f2f1;
+}
+
+/* Components: Card */
+.card {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
+}
+
+/* Components: Buttons */
+.btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+  transition: 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary { background-color: #047857; color: white; }
+.btn-primary:hover { background-color: #065f46; }
+
+.btn-secondary { background-color: #10B981; color: white; }
+.btn-danger { background-color: #ef4444; color: white; }
+.btn-ghost { background-color: transparent; color: #555; border: 1px solid #ddd; }
+.btn-block { width: 100%; display: block; }
+
+/* Components: Inputs */
+.form-group { margin-bottom: 15px; }
+.label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.9em; color: #555; }
+.input, .select, .textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-sizing: border-box;
+  font-size: 16px;
+}
+.input:focus { border-color: #047857; outline: none; }
+
+/* Components: Navbar/Header */
+.navbar {
+  background: white;
+  padding: 15px 20px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+.logo { font-size: 1.2rem; font-weight: bold; color: #047857; }
+
+/* Components: Table (Dashboard) */
+.table-container { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+th { background-color: #f9fafb; color: #666; font-size: 0.85em; text-transform: uppercase; }
+tr:hover { background-color: #f9f9f9; }
+
+/* Utilities */
+.flex { display: flex; gap: 10px; align-items: center; }
+.justify-between { justify-content: space-between; }
+.text-center { text-align: center; }
+.text-lg { font-size: 1.2rem; font-weight: bold; }
+.text-primary { color: #047857; }
+.mt-4 { margin-top: 20px; }
+.mb-4 { margin-bottom: 20px; }
+.badge { padding: 4px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }
+.badge-green { background: #d1fae5; color: #065f46; }
+.badge-red { background: #fee2e2; color: #991b1b; }
+.badge-yellow { background: #fef3c7; color: #92400e; }
+
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+.modal-content {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 400px;
+  animation: slideDown 0.3s ease;
+}
+@keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }

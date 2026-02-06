@@ -7,15 +7,27 @@ export default function BookingPage() {
   const [loading, setLoading] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [time, setTime] = useState(""); 
-  const [customer, setCustomer] = useState({ name: "", phone: "", notes: "" });
+  // Hapus 'notes' global di customer karena sudah ada per-item
+  const [customer, setCustomer] = useState({ name: "", phone: "" }); 
   const [menuItems, setMenuItems] = useState([]);
   
+  // State Kategori
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const categories = ["All", "Coffee", "Non-Coffee", "Food", "Snack"];
+
   const [cart, setCart] = useState({}); 
   const [bundles, setBundles] = useState([]); 
   const [totalPrice, setTotalPrice] = useState(0);
 
+  // --- [BARU] STATE CATATAN PER ITEM ---
+  const [itemNotes, setItemNotes] = useState({}); 
+  // -------------------------------------
+
   const [isPromoOpen, setIsPromoOpen] = useState(false);
   const [promoSelection, setPromoSelection] = useState({ food: "", drink: "" });
+
+  // Hitung total item
+  const totalItemsInCart = Object.values(cart).reduce((a, b) => a + b, 0) + bundles.length;
 
   useEffect(() => { fetchMenu(); }, []);
 
@@ -42,13 +54,11 @@ export default function BookingPage() {
     if(!date || !time) return alert("Mohon isi tanggal & jam kedatangan dulu ya 🙏");
     const selectedDateTime = new Date(`${date}T${time}`);
     const now = new Date();
-    if (selectedDateTime < now) {
-        alert("Waktu sudah berlalu! Mohon pilih jadwal masa depan 😅");
-        return;
-    }
+    if (selectedDateTime < now) return alert("Waktu sudah berlalu! Mohon pilih jadwal masa depan 😅");
     setStep(2);
   };
 
+  // --- LOGIC PAKET (BUNDLE) ---
   const handleAddBundle = () => {
       const food = menuItems.find(i => i.id === promoSelection.food);
       const drink = menuItems.find(i => i.id === promoSelection.drink);
@@ -58,7 +68,8 @@ export default function BookingPage() {
           id: `promo-${Date.now()}`,
           name: `Paket Ramadhan: ${food.name} + ${drink.name}`,
           price: 25000,
-          qty: 1
+          qty: 1,
+          note: "" // Default catatan kosong
       };
       setBundles([...bundles, newBundle]);
       setIsPromoOpen(false);
@@ -71,37 +82,67 @@ export default function BookingPage() {
       setBundles(newBundles);
   };
 
+  // Update Catatan Paket
+  const updateBundleNote = (index, text) => {
+      const newBundles = [...bundles];
+      newBundles[index].note = text;
+      setBundles(newBundles);
+  };
+
+  // --- LOGIC MENU SATUAN ---
   const addToCart = (itemId) => { setCart(prev => ({ ...prev, [itemId]: (prev[itemId] || 0) + 1 })); };
   const removeFromCart = (itemId) => {
     setCart(prev => {
       const currentQty = prev[itemId] || 0;
-      if (currentQty <= 1) { const newCart = { ...prev }; delete newCart[itemId]; return newCart; }
+      if (currentQty <= 1) { 
+          const newCart = { ...prev }; 
+          delete newCart[itemId]; 
+          // Hapus catatan juga jika item dihapus
+          const newNotes = { ...itemNotes };
+          delete newNotes[itemId];
+          setItemNotes(newNotes);
+          return newCart; 
+      }
       return { ...prev, [itemId]: currentQty - 1 };
     });
+  };
+
+  // Update Catatan Menu Satuan
+  const handleItemNoteChange = (id, text) => {
+      setItemNotes(prev => ({ ...prev, [id]: text }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
+    // 1. Siapkan Item Satuan + Catatan
     const regularItems = Object.keys(cart).map(itemId => {
       const item = menuItems.find(p => p.id === itemId);
-      return { name: item.name, qty: cart[itemId], price: item.price, subtotal: item.price * cart[itemId] };
+      return { 
+          name: item.name, 
+          qty: cart[itemId], 
+          price: item.price, 
+          subtotal: item.price * cart[itemId],
+          note: itemNotes[itemId] || "" // Ambil catatan
+      };
     });
 
+    // 2. Siapkan Paket + Catatan
     const bundleItems = bundles.map(b => ({
-        name: b.name, qty: 1, price: 25000, subtotal: 25000
+        name: b.name, 
+        qty: 1, 
+        price: 25000, 
+        subtotal: 25000,
+        note: b.note || "" // Ambil catatan paket
     }));
-
-    const finalOrderItems = [...regularItems, ...bundleItems];
 
     try {
       await addDoc(collection(db, "reservations"), {
         date, time, 
         customerName: customer.name, 
         customerPhone: customer.phone,
-        customerNotes: customer.notes,
-        items: finalOrderItems, 
+        items: [...regularItems, ...bundleItems], 
         totalPrice: totalPrice, 
         status: "pending", 
         createdAt: new Date()
@@ -112,144 +153,157 @@ export default function BookingPage() {
 
   const generateWaLink = () => {
     const phoneNumber = "6287819502426"; 
-    const regularText = Object.keys(cart).map(itemId => {
-        const item = menuItems.find(p => p.id === itemId);
-        return `- ${item.name} (${cart[itemId]}x)`;
+    
+    // Format teks Menu Satuan dengan Catatan
+    const regularText = Object.keys(cart).map(id => {
+        const item = menuItems.find(p => p.id === id);
+        // Catatan dibuat miring dengan tanda _
+        const note = itemNotes[id] ? ` _(Catatan: ${itemNotes[id]})_` : "";
+        return `- ${item.name} (${cart[id]}x)${note}`;
     }).join("\n");
-    const bundleText = bundles.map(b => `- ${b.name}`).join("\n");
-    const notesText = customer.notes ? `\n📝 Catatan: ${customer.notes}` : "";
-    const message = `Halo Cafe Tropis 🌵,\nSaya ingin reservasi:\n\n👤 Nama: ${customer.name}\n📅 Jam: ${time}, ${date}\n\n🛒 Order:\n${regularText}\n${bundleText}\n${notesText}\n\n💰 Total: Rp ${totalPrice.toLocaleString()}`;
+
+    // Format teks Paket dengan Catatan
+    const bundleText = bundles.map(b => {
+        const note = b.note ? ` _(Catatan: ${b.note})_` : "";
+        return `- ${b.name}${note}`;
+    }).join("\n");
+
+    // PERUBAHAN DI SINI: Menambahkan tanda bintang (*) agar tebal
+    const message = `Halo Cafe Tropis 🌵,\nSaya ingin reservasi:\n\n *Nama:* ${customer.name}\n *Jam:* ${time}, ${date}\n\n *Order:*\n${regularText}\n${bundleText}\n\n *Total: Rp ${totalPrice.toLocaleString()}*`;
+    
     return `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
   };
 
+  // Logic Filter Kategori
+  const filteredItems = selectedCategory === "All" 
+    ? menuItems 
+    : menuItems.filter(item => item.category === selectedCategory);
+
   return (
-    <div className="min-h-screen bg-base-200 pb-40 font-sans text-neutral selection:bg-primary selection:text-white">
-      
-      {/* HEADER */}
-      <div className="bg-base-100/95 backdrop-blur-md sticky top-0 z-40 border-b border-primary/10 px-6 py-4 flex justify-between items-center shadow-sm">
-        <h1 className="font-extrabold text-xl tracking-tight text-primary flex items-center gap-2">
-          <span>🌵</span> Cafe Tropis
-        </h1>
-        {step < 4 && <div className="badge badge-primary font-bold text-white px-3 py-3">Langkah {step} / 3</div>}
+    <div style={{ paddingBottom: '100px' }}>
+      {/* NAVBAR */}
+      <div className="navbar">
+        <div className="logo">🌵 Cafe Tropis</div>
+        {step < 4 && <div className="badge badge-green">Langkah {step} / 3</div>}
       </div>
 
-      <div className="max-w-xl mx-auto p-6">
+      <div className="container">
         
         {/* STEP 1: WAKTU */}
         {step === 1 && (
-          <div className="animate-fade-in space-y-8 mt-4">
-            <div className="text-center space-y-2">
-               <h2 className="text-3xl font-extrabold text-primary">Kapan mau mampir?</h2>
-               <p className="opacity-70 font-medium">Atur jadwal kunjunganmu.</p>
+          <div className="text-center mt-4">
+            <h2 className="text-lg">Kapan mau mampir?</h2>
+            <p className="mb-4" style={{color:'#666'}}>Atur jadwal kunjunganmu.</p>
+            <div className="card text-left">
+              <div className="form-group"><label className="label">📅 Tanggal</label><input type="date" className="input" value={date} min={new Date().toISOString().split("T")[0]} onChange={(e) => setDate(e.target.value)} /></div>
+              <div className="form-group"><label className="label">⏰ Jam</label><input type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} /></div>
             </div>
-
-            <div className="bg-base-100 p-6 rounded-3xl shadow-lg border border-primary/10 space-y-6">
-              <div className="form-control">
-                <label className="label text-sm font-bold uppercase opacity-80 tracking-wider text-neutral">📅 Tanggal</label>
-                <input type="date" className="input input-lg w-full rounded-2xl font-bold bg-base-200 border-2 border-transparent focus:border-primary focus:bg-white transition-all text-lg" 
-                  value={date} min={new Date().toISOString().split("T")[0]} onChange={(e) => setDate(e.target.value)} />
-              </div>
-              <div className="form-control">
-                <label className="label text-sm font-bold uppercase opacity-80 tracking-wider text-neutral">⏰ Jam</label>
-                <input type="time" className="input input-lg w-full rounded-2xl font-extrabold text-2xl bg-base-200 border-2 border-transparent focus:border-primary focus:bg-white transition-all" 
-                  value={time} onChange={(e) => setTime(e.target.value)} />
-              </div>
-            </div>
-
-            <button onClick={() => setTime("17:45")} 
-              className={`w-full p-5 rounded-2xl flex items-center gap-4 transition-all border-2 shadow-md ${time === "17:45" ? "border-primary bg-primary text-white ring-2 ring-primary ring-offset-2 ring-offset-base-100" : "border-base-300 bg-base-100 hover:border-primary/50"}`}>
-                <span className="text-4xl">🌙</span>
-                <div className="text-left">
-                    <div className="font-bold text-lg">Shortcut Buka Puasa</div>
-                    <div className="text-sm opacity-80">Otomatis set jam 17:45</div>
-                </div>
-            </button>
-
-            <button onClick={handleStep1Submit} 
-              className="btn btn-lg w-full rounded-2xl shadow-2xl shadow-primary/40 text-white font-extrabold text-xl h-16 border-none bg-gradient-to-r from-primary to-secondary hover:from-primary hover:to-primary hover:scale-[1.02] active:scale-95 transition-all ring-2 ring-primary/30 ring-offset-2 ring-offset-base-200">
-              LANJUT PILIH MENU ➔
-            </button>
+            <button onClick={() => setTime("17:45")} className="btn btn-ghost btn-block mb-4" style={{border:'2px solid #047857', color:'#047857'}}>🌙 Shortcut Buka Puasa (17:45)</button>
+            <button onClick={handleStep1Submit} className="btn btn-primary btn-block">LANJUT PILIH MENU ➔</button>
           </div>
         )}
 
         {/* STEP 2: MENU */}
         {step === 2 && (
-          <div className="animate-fade-in pb-24">
-            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 text-primary">
-              🍽️ Pilih Menu
-            </h2>
+          <div className="mt-4">
+            <h2 className="text-lg mb-4 text-primary">🍽️ Pilih Menu</h2>
             
-            {/* KARTU PROMO (Lebih Elegan) */}
-            <div 
-                onClick={() => setIsPromoOpen(true)}
-                className="bg-gradient-to-br from-primary to-emerald-800 p-6 rounded-3xl mb-8 shadow-xl cursor-pointer hover:shadow-2xl hover:-translate-y-1 transition-all text-white relative overflow-hidden group border border-white/20">
-                <div className="absolute -right-4 -top-4 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-                <h3 className="text-2xl font-extrabold flex items-center gap-2">📦 Paket Ramadhan</h3>
-                <p className="text-white/90 font-bold mt-1 text-lg">Rp 25.000 <span className="badge badge-accent text-neutral font-bold ml-2">HEMAT!</span></p>
-                <div className="mt-4 w-full bg-white text-primary py-3 rounded-xl text-center font-extrabold shadow-md">
-                    🔥 AMBIL PROMO
-                </div>
+            {/* PROMO CARD */}
+            <div onClick={() => setIsPromoOpen(true)} className="card" style={{ background: 'linear-gradient(135deg, #047857 0%, #10B981 100%)', color: 'white', cursor: 'pointer' }}>
+                <h3 className="text-lg" style={{margin:0}}>☪️ Paket Ramadhan</h3>
+                <p style={{margin:'5px 0'}}>Rp 25.000 (Hemat!)</p>
+                <small>Klik untuk pilih menu</small>
             </div>
 
-            {/* KERANJANG AKTIF */}
-            {(bundles.length > 0 || Object.keys(cart).length > 0) && (
-                 <div className="mb-8 space-y-3">
+            {/* TAB KATEGORI */}
+            <div className="category-scroll">
+              {categories.map((cat) => (
+                <button key={cat} onClick={() => setSelectedCategory(cat)}
+                  className={`btn ${selectedCategory === cat ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ borderRadius: '20px', whiteSpace: 'nowrap', padding: '8px 16px' }}>
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* KERANJANG AKTIF (BUNDLE) */}
+            {bundles.length > 0 && (
+                 <div className="mb-4">
                     {bundles.map((b, idx) => (
-                        <div key={b.id} className="bg-white border-l-8 border-primary p-4 rounded-xl flex justify-between items-center shadow-md">
-                            <div>
-                                <h4 className="font-bold text-neutral">📦 Paket Ramadhan</h4>
-                                <p className="text-xs font-bold opacity-60">{b.name.replace("Paket Ramadhan: ", "")}</p>
+                        <div key={b.id} className="card" style={{padding:'15px', marginBottom:'10px', borderLeft:'5px solid #047857'}}>
+                            <div className="flex justify-between">
+                                <div><b>☪️ Paket Ramadhan</b><div style={{fontSize:'0.8em', color:'#666'}}>{b.name.replace("Paket Ramadhan: ", "")}</div></div>
+                                <div className="flex"><b>Rp 25.000</b><button onClick={() => removeBundle(idx)} className="btn btn-danger" style={{padding:'5px 10px', marginLeft:'10px'}}>✕</button></div>
                             </div>
-                            <div className="flex items-center gap-3">
-                                <span className="font-bold text-primary">Rp 25.000</span>
-                                <button onClick={() => removeBundle(idx)} className="btn btn-sm btn-square btn-error text-white">✕</button>
-                            </div>
+                            {/* Input Catatan Paket */}
+                            <input 
+                                className="input" 
+                                style={{marginTop:'10px', padding:'8px', fontSize:'0.9em', background:'#f9f9f9'}}
+                                placeholder="Catatan Paket..."
+                                value={b.note}
+                                onChange={(e) => updateBundleNote(idx, e.target.value)}
+                            />
                         </div>
                     ))}
                  </div>
             )}
 
-            {/* LIST MENU */}
-            <h3 className="font-bold text-lg mb-4 opacity-80 uppercase tracking-widest text-xs text-neutral">Menu Satuan</h3>
-            <div className="space-y-4">
-              {menuItems.map((item) => (
-                <div key={item.id} className="flex flex-col bg-base-100 p-5 rounded-3xl shadow-sm border border-base-200 hover:border-primary transition-all">
-                  <div className="flex justify-between items-start mb-4">
-                     <div>
-                        <h4 className="font-extrabold text-lg text-neutral">{item.name}</h4>
-                        <span className="text-[10px] font-bold bg-primary/10 text-primary px-3 py-1 rounded-full uppercase tracking-wide mt-1 inline-block">{item.category}</span>
-                     </div>
-                     <p className="text-xl font-extrabold text-primary">Rp {item.price.toLocaleString()}</p>
-                  </div>
-                  
-                  {cart[item.id] > 0 ? (
-                    <div className="flex items-center justify-between bg-base-200 rounded-2xl p-1.5 border border-base-300">
-                      <button onClick={() => removeFromCart(item.id)} className="btn btn-md btn-square btn-ghost bg-white text-xl rounded-xl shadow-sm">-</button>
-                      <span className="font-extrabold text-xl w-12 text-center text-neutral">{cart[item.id]}</span>
-                      <button onClick={() => addToCart(item.id)} className="btn btn-md btn-square btn-primary text-white text-xl rounded-xl shadow-md">+</button>
+            {/* LIST MENU (SATUAN) */}
+            <h3>Menu Satuan</h3>
+            <div>
+              {filteredItems.length === 0 ? (
+                <div className="text-center" style={{padding:'40px', color:'#999'}}>Belum ada menu di kategori ini.</div>
+              ) : (
+                filteredItems.map((item) => (
+                  <div key={item.id} className="card" style={{padding:'15px'}}>
+                    <div className="flex justify-between items-center">
+                        <div>
+                           <h4 style={{margin:0}}>{item.name}</h4>
+                           <span className="badge badge-green" style={{fontSize:'0.7em'}}>{item.category}</span>
+                           <div className="text-primary font-bold">Rp {item.price.toLocaleString()}</div>
+                        </div>
+                        
+                        {cart[item.id] > 0 ? (
+                          <div className="flex">
+                            <button onClick={() => removeFromCart(item.id)} className="btn btn-ghost" style={{padding:'5px 10px'}}>-</button>
+                            <span style={{padding:'5px 10px', fontWeight:'bold'}}>{cart[item.id]}</span>
+                            <button onClick={() => addToCart(item.id)} className="btn btn-primary" style={{padding:'5px 10px'}}>+</button>
+                          </div>
+                        ) : (
+                          <button onClick={() => addToCart(item.id)} className="btn btn-primary" style={{padding:'8px 15px'}}>+ Add</button>
+                        )}
                     </div>
-                  ) : (
-                    <button onClick={() => addToCart(item.id)} className="btn btn-block btn-outline btn-primary font-bold rounded-2xl border-2 hover:bg-primary hover:text-white hover:border-primary">
-                      + TAMBAH
-                    </button>
-                  )}
-                </div>
-              ))}
+
+                    {/* INPUT CATATAN (Muncul jika ada di keranjang) */}
+                    {cart[item.id] > 0 && (
+                        <div style={{marginTop:'10px'}}>
+                            <input 
+                                className="input" 
+                                style={{padding:'8px', fontSize:'0.9em', background:'#f9f9f9'}}
+                                placeholder={`Catatan untuk ${item.name}...`}
+                                value={itemNotes[item.id] || ""}
+                                onChange={(e) => handleItemNoteChange(item.id, e.target.value)}
+                            />
+                        </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
             
             {/* FOOTER KERANJANG */}
-            <div className="fixed bottom-6 left-0 right-0 px-4 z-50 max-w-xl mx-auto">
-               <div className="bg-neutral text-white p-4 rounded-3xl shadow-2xl flex justify-between items-center border border-white/10">
-                  <div className="pl-3">
-                    <p className="text-[10px] uppercase tracking-wider font-bold opacity-70">Total Bayar</p>
-                    <p className="text-2xl font-black text-accent">Rp {totalPrice.toLocaleString()}</p>
+            <div style={{ position:'fixed', bottom:0, left:0, right:0, padding:'20px', background:'white', borderTop:'1px solid #eee', boxShadow:'0 -2px 10px rgba(0,0,0,0.1)' }}>
+               <div className="container flex justify-between">
+                  <div>
+                    <small>Total Bayar</small>
+                    <div className="text-lg text-primary">Rp {totalPrice.toLocaleString()}</div>
                   </div>
-                  <div className="flex gap-2">
-                     <button onClick={() => { if(totalPrice === 0) return alert("Pilih minimal 1 menu"); setStep(3); }} 
-                        className="btn btn-lg btn-primary rounded-2xl px-8 text-white font-black shadow-lg border-none">
-                        CHECKOUT ➔
-                     </button>
-                  </div>
+                  <button onClick={() => { 
+                      if(totalItemsInCart < 4) return alert("Pilih minimal 4 menu untuk melanjutkan 🙏"); 
+                      setStep(3); 
+                    }} className="btn btn-primary">
+                    CHECKOUT ➔
+                  </button>
                </div>
             </div>
           </div>
@@ -257,97 +311,39 @@ export default function BookingPage() {
 
         {/* STEP 3: KONFIRMASI */}
         {step === 3 && (
-          <form onSubmit={handleSubmit} className="animate-fade-in space-y-6 mt-4">
-            <h2 className="text-2xl font-bold text-center text-primary">📝 Data Pemesan</h2>
-            
-            <div className="bg-base-100 p-6 rounded-3xl shadow-lg border border-base-200 space-y-5">
-                <div className="flex justify-between items-center pb-5 border-b border-base-200">
-                    <span className="opacity-70 font-bold text-sm uppercase">Total Tagihan</span>
-                    <span className="font-extrabold text-3xl text-primary">Rp {totalPrice.toLocaleString()}</span>
-                </div>
-                
-                <div className="form-control">
-                   <label className="label text-xs font-bold uppercase opacity-70 tracking-wider">👤 Nama Lengkap</label>
-                   <input required className="input input-lg w-full rounded-2xl font-bold bg-base-200 border-2 border-transparent focus:border-primary focus:bg-white transition-all" 
-                      onChange={(e) => setCustomer({...customer, name: e.target.value})} placeholder="Contoh: Budi" />
-                </div>
-                
-                <div className="form-control">
-                   <label className="label text-xs font-bold uppercase opacity-70 tracking-wider">📱 WhatsApp</label>
-                   <input required type="tel" className="input input-lg w-full rounded-2xl font-bold bg-base-200 border-2 border-transparent focus:border-primary focus:bg-white transition-all" 
-                      onChange={(e) => setCustomer({...customer, phone: e.target.value})} placeholder="08..." />
-                </div>
-
-                <div className="form-control">
-                   <label className="label text-xs font-bold uppercase opacity-70 tracking-wider">📝 Catatan (Opsional)</label>
-                   <textarea className="textarea textarea-bordered h-24 rounded-2xl bg-base-200 focus:bg-white focus:border-primary font-medium text-base" 
-                      placeholder="Contoh: Jangan pedas, Es dipisah..."
-                      onChange={(e) => setCustomer({...customer, notes: e.target.value})}></textarea>
-                </div>
-                
+          <form onSubmit={handleSubmit} className="mt-4">
+            <h2 className="text-center text-primary mb-4"> Data Pemesan</h2>
+            <div className="card">
+                <div className="flex justify-between mb-4" style={{borderBottom:'1px solid #eee', paddingBottom:'10px'}}><span>Total Tagihan</span><b className="text-primary" style={{fontSize:'1.2em'}}>Rp {totalPrice.toLocaleString()}</b></div>
+                <div className="form-group"><label className="label">Nama Lengkap</label><input required className="input" placeholder="Contoh: Budi" onChange={(e) => setCustomer({...customer, name: e.target.value})} /></div>
+                {/* Note global dihapus karena sudah ada per item */}
             </div>
-
-            <div className="flex gap-4 pt-4">
-              <button type="button" onClick={() => setStep(2)} className="btn btn-ghost flex-1 rounded-2xl font-bold opacity-70">Kembali</button>
-              <button type="submit" disabled={loading} className="btn btn-primary flex-[2] rounded-2xl text-white font-extrabold text-xl shadow-xl shadow-primary/30 h-16 border-none hover:scale-[1.02] active:scale-95 transition-all">
-                {loading ? "Menyimpan..." : "KIRIM PESANAN ✅"}
-              </button>
-            </div>
+            <div className="flex mt-4"><button type="button" onClick={() => setStep(2)} className="btn btn-ghost" style={{flex:1}}>Kembali</button><button type="submit" disabled={loading} className="btn btn-primary" style={{flex:2}}>{loading ? "Menyimpan..." : "KIRIM PESANAN ✅"}</button></div>
           </form>
         )}
 
         {/* STEP 4: SUKSES */}
         {step === 4 && (
-          <div className="text-center pt-16 animate-fade-in px-4">
-            <h2 className="text-4xl font-black mb-4 text-primary">Pesanan Siap! 🚀</h2>
-            <p className="opacity-70 mb-8 max-w-xs mx-auto text-lg leading-relaxed font-medium">
-                Langkah terakhir: Kirim detail pesanan ini ke WhatsApp Admin.
-            </p>
-            <a href={generateWaLink()} target="_blank" rel="noreferrer" 
-               className="btn btn-success btn-lg w-full rounded-3xl text-white font-black shadow-xl shadow-success/30 h-20 text-xl flex items-center gap-3 border-none hover:scale-[1.02] transition-all">
-              <span className="text-3xl">💬</span> KIRIM KE WHATSAPP
-            </a>
-            <button onClick={() => window.location.reload()} className="btn btn-ghost mt-8 opacity-50 btn-sm font-bold uppercase tracking-widest">
-              ↻ Buat Pesanan Baru
-            </button>
+          <div className="text-center mt-8">
+            <h2 className="text-primary" style={{fontSize:'2em'}}>Pesanan Siap! </h2>
+            <p className="mb-4">Langkah terakhir konfirmasi ke admin.</p>
+            <a href={generateWaLink()} target="_blank" rel="noreferrer" className="btn btn-secondary btn-block" style={{padding:'20px', fontSize:'1.2em'}}> KIRIM KE ADMIN</a>
+            <button onClick={() => window.location.reload()} className="btn btn-ghost mt-4">↻ Buat Pesanan Baru</button>
           </div>
         )}
       </div>
 
       {/* MODAL PROMO */}
       {isPromoOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div className="bg-base-100 w-full max-w-sm rounded-3xl p-8 shadow-2xl animate-scale-in relative border-t-8 border-primary">
-                <button onClick={() => setIsPromoOpen(false)} className="btn btn-sm btn-circle btn-ghost absolute right-4 top-4">✕</button>
-                <h3 className="text-2xl font-black mb-2 text-primary">Pilih Menu Paket</h3>
-                <p className="text-sm font-bold opacity-60 mb-8">1 Makanan + 1 Minuman</p>
-                <div className="space-y-6">
-                    <div className="form-control">
-                        <label className="label font-bold text-xs uppercase opacity-70">Makanan</label>
-                        <select className="select select-bordered select-lg w-full rounded-2xl font-bold bg-base-200 focus:border-primary" 
-                            onChange={(e) => setPromoSelection({...promoSelection, food: e.target.value})}>
-                            <option value="">-- Pilih Makanan --</option>
-                            {menuItems.filter(i => i.category === 'Food').map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                        </select>
-                    </div>
-                    <div className="form-control">
-                        <label className="label font-bold text-xs uppercase opacity-70">Minuman</label>
-                        <select className="select select-bordered select-lg w-full rounded-2xl font-bold bg-base-200 focus:border-primary"
-                            onChange={(e) => setPromoSelection({...promoSelection, drink: e.target.value})}>
-                            <option value="">-- Pilih Minuman --</option>
-                            {menuItems.filter(i => i.category === 'Coffee' || i.category === 'Non-Coffee').map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                        </select>
-                    </div>
-                </div>
-                <div className="mt-8">
-                    <button onClick={handleAddBundle} className="btn btn-primary btn-lg w-full rounded-2xl shadow-lg text-white font-black h-16">
-                        SIMPAN PAKET ➔
-                    </button>
-                </div>
+        <div className="modal-overlay">
+            <div className="modal-content">
+                <div className="flex justify-between mb-4"><h3>Pilih Menu Paket</h3><button onClick={() => setIsPromoOpen(false)} className="btn btn-ghost" style={{padding:'5px'}}>✕</button></div>
+                <div className="form-group"><label className="label">Makanan</label><select className="select" onChange={(e) => setPromoSelection({...promoSelection, food: e.target.value})}><option value="">-- Pilih Makanan --</option>{menuItems.filter(i => i.category === 'Food').map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div>
+                <div className="form-group"><label className="label">Minuman</label><select className="select" onChange={(e) => setPromoSelection({...promoSelection, drink: e.target.value})}><option value="">-- Pilih Minuman --</option>{menuItems.filter(i => i.category === 'Coffee' || i.category === 'Non-Coffee').map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div>
+                <button onClick={handleAddBundle} className="btn btn-primary btn-block mt-4">SIMPAN PAKET</button>
             </div>
         </div>
       )}
-
     </div>
   );
 }
