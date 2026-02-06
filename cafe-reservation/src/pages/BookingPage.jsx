@@ -284,6 +284,7 @@ export default function BookingPage() {
                       placeholder="Contoh: Jangan pedas, Es dipisah..."
                       onChange={(e) => setCustomer({...customer, notes: e.target.value})}></textarea>
                 </div>
+                
             </div>
 
             <div className="flex gap-4 pt-4">

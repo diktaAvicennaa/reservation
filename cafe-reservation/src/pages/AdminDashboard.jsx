@@ -110,8 +110,8 @@ export default function AdminDashboard() {
                       <td className="pr-6 align-top">
                           {res.status === 'pending' ? (
                               <div className="flex flex-col gap-2">
-                                  <button onClick={()=>handleStatus(res.id,'confirmed')} className="btn btn-sm btn-success text-white border-none font-bold w-full shadow">✔ TERIMA</button>
-                                  <button onClick={()=>handleStatus(res.id,'rejected')} className="btn btn-sm btn-error text-white border-none font-bold w-full shadow">✖ TOLAK</button>
+                                  <button onClick={()=>handleStatus(res.id,'confirmed')} className="btn btn-sm btn-success text-green-500 border-none font-bold w-full shadow">✔ TERIMA</button>
+                                  <button onClick={()=>handleStatus(res.id,'rejected')} className="btn btn-sm btn-error text-red-500 border-none font-bold w-full shadow">✖ TOLAK</button>
                               </div>
                           ) : <span className="opacity-30 text-xs font-bold italic">Selesai</span>}
                       </td>
