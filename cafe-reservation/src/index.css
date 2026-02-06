@@ -1,9 +1,107 @@
-/* --- index.css --- */
+/* Reset Dasar */
 body {
-  font-family: 'Segoe UI', sans-serif;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   margin: 0;
-  background-color: #ECFDF5;
+  padding: 0;
+  background-color: #f4f7f6;
+  color: #333;
+}
+
+/* Layout Helpers */
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.full-screen-center {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #e0f2f1;
+}
+
+/* Components: Card */
+.card {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+  margin-bottom: 20px;
+}
+
+/* Components: Buttons */
+.btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 14px;
+  transition: 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary { background-color: #047857; color: white; }
+.btn-primary:hover { background-color: #065f46; }
+
+.btn-secondary { background-color: #10B981; color: white; }
+.btn-danger { background-color: #ef4444; color: white; }
+.btn-ghost { background-color: transparent; color: #555; border: 1px solid #ddd; }
+.btn-block { width: 100%; display: block; }
+
+/* Components: Inputs */
+.form-group { margin-bottom: 15px; }
+.label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.9em; color: #555; }
+.input, .select, .textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-sizing: border-box;
+  font-size: 16px;
+}
+.input:focus { border-color: #047857; outline: none; }
+
+/* Components: Navbar/Header */
+.navbar {
+  background: white;
+  padding: 15px 20px;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+}
+.logo { font-size: 1.2rem; font-weight: bold; color: #047857; }
+
+/* Update atau ganti bagian table styling di index.css kamu */
+/* --- index.css --- */
+
+/* Reset Dasar & Tema Tropis */
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  padding: 0;
+  background-color: #ECFDF5; /* Hijau Mint Muda */
   color: #1F2937;
+}
+
+/* Layout Utama */
+.admin-container {
+  min-height: 100vh;
 }
 
 .admin-navbar {
@@ -12,7 +110,14 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  
+   /* Aksen Hijau Tua */
+}
+
+.admin-navbar h1 {
+  color: #065F46;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 900;
 }
 
 .admin-content {
@@ -21,12 +126,14 @@ body {
   padding: 20px;
 }
 
+/* --- Konfigurasi Tabel --- */
 .table-container {
   width: 100%;
   overflow-x: auto;
   background: white;
   border-radius: 12px;
   box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+  margin-top: 20px;
 }
 
 table {
@@ -35,9 +142,10 @@ table {
   min-width: 900px;
 }
 
+/* Gaya Header Tabel */
 table th {
   padding: 15px;
-  text-align: left;
+  text-align: left; /* Default rata kiri */
   background-color: #f9fafb;
   border-bottom: 2px solid #e5e7eb;
   font-size: 12px;
@@ -45,53 +153,47 @@ table th {
   text-transform: uppercase;
 }
 
+/* Gaya Sel Tabel & Garis Pemisah */
 table td {
   padding: 15px;
   vertical-align: top;
-  border-bottom: 1px solid #f3f4f6; /* Garis antar baris dipertahankan */
+  border-bottom: 1px solid #f3f4f6;
 }
 
-/* PERATAAN TENGAH */
+/* --- SOLUSI RATA TENGAH (AKSI & PELANGGAN) --- */
+
+/* Gunakan !important untuk memaksa rata tengah pada header dan sel */
 .table-center {
   text-align: center !important;
 }
 
+/* Khusus Kolom Harga (Total) agar rata tengah */
 .price-column {
-  text-align: center !important;
+  text-align: center !important; 
   font-weight: bold;
   color: #065F46;
   white-space: nowrap !important;
 }
 
+/* Kunci Agar Satu Baris Lurus */
 .force-nowrap {
   white-space: nowrap !important;
 }
 
-/* KOMPONEN MENU */
-.menu-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 20px;
+/* --- Komponen UI --- */
+
+/* Input Nomor Meja */
+.input-meja {
+  width: 80px;
+  padding: 8px;
+  text-align: center;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  background-color: #f9fafb;
+  font-weight: bold;
 }
 
-.menu-card {
-  background: white;
-  padding: 20px;
-  border-radius: 15px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-.category-tag {
-  font-size: 10px;
-  background: #f3f4f6;
-  padding: 2px 6px;
-  border-radius: 4px;
-}
-
-/* BADGES */
+/* Badge Status */
 .badge {
   display: inline-block;
   padding: 4px 10px;
@@ -104,47 +206,119 @@ table td {
 .badge-red { background-color: #ef4444; }
 .badge-yellow { background-color: #f59e0b; color: #78350f; }
 
-/* UI LAINNYA */
-.input-meja {
-  width: 80px;
-  padding: 6px;
-  text-align: center;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+/* Tombol & Navigasi */
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
 }
 
-.tabs { display: flex; gap: 10px; margin-bottom: 20px; }
-.tabs button { flex: 1; padding: 12px; border: none; background: white; border-radius: 8px; font-weight: bold; cursor: pointer; }
-.tabs button.active { background: #065F46; color: white; }
+.tabs button {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  background: white;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+}
 
-.btn { padding: 8px 16px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; }
+.tabs button.active {
+  background: #065F46;
+  color: white;
+}
+
+.btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+}
+
 .btn-primary { background: #065F46; color: white; }
 .btn-danger { background: #ef4444; color: white; }
 .btn-ghost { background: transparent; }
-.btn-sm { font-size: 11px; padding: 4px 8px; }
+.btn-sm { font-size: 11px; padding: 5px 10px; }
 
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.modal-content {
-  background: white;
-  padding: 25px;
-  border-radius: 15px;
-  width: 100%;
-  max-width: 400px;
-}
-
-.flex { display: flex; align-items: center; }
+/* Utility */
 .flex-col { display: flex; flex-direction: column; }
 .gap-2 { gap: 8px; }
-.w-full { width: 100%; }
-.mb-4 { margin-bottom: 16px; }
-.mt-4 { margin-top: 16px; }
+.table-container.no-border {
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+
+.clean-table {
+  width: 100%;
+  border-collapse: collapse;
+  /* Menghilangkan garis luar tabel */
+  border: none !important; 
+}
+
+.clean-table th {
+  background-color: transparent !important;
+  /* Menghilangkan garis bawah pada header */
+  border-bottom: none !important; 
+  padding: 15px;
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.clean-table td {
+  /* INI KUNCINYA: Menghilangkan garis bawah antar baris */
+  border-bottom: none !important; 
+  padding: 20px 15px; /* Tambah padding agar antar baris ada jarak meski tanpa garis */
+  vertical-align: top;
+}
+
+/* Opsional: Beri warna background tipis saat di-hover agar tetap mudah dibaca */
+.clean-table tbody tr:hover {
+  background-color: rgba(6, 95, 70, 0.05); /* Hijau transparan tipis */
+  border-radius: 12px;
+}
+
+.force-nowrap {
+  white-space: nowrap !important;
+}
+
+.input-meja {
+  border: 1px solid transparent !important; /* Hilangkan garis kotak input jika perlu */
+  background-color: #f3f4f6;
+  border-radius: 8px;
+  padding: 8px;
+  width: 60px;
+  text-align: center;
+}
+
+/* Utilities */
+.flex { display: flex; gap: 10px; align-items: center; }
 .justify-between { justify-content: space-between; }
+.text-center { text-align: center; }
+.text-lg { font-size: 1.2rem; font-weight: bold; }
+.text-primary { color: #047857; }
+.mt-4 { margin-top: 20px; }
+.mb-4 { margin-bottom: 20px; }
+.badge { padding: 4px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }
+.badge-green { background: #d1fae5; color: #065f46; }
+.badge-red { background: #fee2e2; color: #991b1b; }
+.badge-yellow { background: #fef3c7; color: #92400e; }
+
+/* Modal Overlay */
+.modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+.modal-content {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 400px;
+  animation: slideDown 0.3s ease;
+}
+@keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }

@@ -309,19 +309,84 @@ export default function BookingPage() {
           </div>
         )}
 
-        {/* STEP 3: KONFIRMASI */}
+        {/* STEP 3: KONFIRMASI & REVIEW */}
         {step === 3 && (
           <form onSubmit={handleSubmit} className="mt-4">
-            <h2 className="text-center text-primary mb-4"> Data Pemesan</h2>
-            <div className="card">
-                <div className="flex justify-between mb-4" style={{borderBottom:'1px solid #eee', paddingBottom:'10px'}}><span>Total Tagihan</span><b className="text-primary" style={{fontSize:'1.2em'}}>Rp {totalPrice.toLocaleString()}</b></div>
-                <div className="form-group"><label className="label">Nama Lengkap</label><input required className="input" placeholder="Contoh: Budi" onChange={(e) => setCustomer({...customer, name: e.target.value})} /></div>
-                {/* Note global dihapus karena sudah ada per item */}
+            <h2 className="text-center text-primary mb-4">📝 Konfirmasi Pesanan</h2>
+            
+            {/* --- [BARU] RINCIAN MENU YANG DIPESAN --- */}
+            <div className="card mb-4" style={{background:'#f8fafc', border:'1px solid #e2e8f0'}}>
+                <h3 style={{marginTop:0, fontSize:'1rem', borderBottom:'1px solid #ddd', paddingBottom:'10px', marginBottom:'10px'}}>
+                    Cek Pesananmu:
+                </h3>
+                
+                <div style={{maxHeight:'250px', overflowY:'auto'}}>
+                    {/* 1. List Paket Ramadhan */}
+                    {bundles.map((b, i) => (
+                        <div key={i} style={{display:'flex', justifyContent:'space-between', marginBottom:'12px', fontSize:'0.9em', borderBottom:'1px dashed #eee', paddingBottom:'5px'}}>
+                            <div style={{flex:1}}>
+                                <div style={{fontWeight:'bold', color:'#047857'}}>{b.name}</div>
+                                {b.note ? (
+                                    <div style={{fontSize:'0.85em', color:'#d97706', fontStyle:'italic'}}>📝 {b.note}</div>
+                                ) : (
+                                    <div style={{fontSize:'0.8em', color:'#999', fontStyle:'italic'}}>Tidak ada catatan</div>
+                                )}
+                            </div>
+                            <div style={{fontWeight:'bold'}}>Rp {b.price.toLocaleString()}</div>
+                        </div>
+                    ))}
+
+                    {/* 2. List Menu Satuan */}
+                    {Object.keys(cart).map((id) => {
+                        const item = menuItems.find(i => i.id === id);
+                        if(!item) return null;
+                        return (
+                            <div key={id} style={{display:'flex', justifyContent:'space-between', marginBottom:'12px', fontSize:'0.9em', borderBottom:'1px dashed #eee', paddingBottom:'5px'}}>
+                                <div style={{flex:1}}>
+                                    <div style={{fontWeight:'bold'}}>
+                                        {cart[id]}x {item.name}
+                                    </div>
+                                    <div style={{fontSize:'0.8em', color:'#666'}}>@ Rp {item.price.toLocaleString()}</div>
+                                    
+                                    {itemNotes[id] ? (
+                                        <div style={{fontSize:'0.85em', color:'#d97706', fontStyle:'italic'}}>📝 {itemNotes[id]}</div>
+                                    ) : (
+                                        <div style={{fontSize:'0.8em', color:'#999', fontStyle:'italic'}}>Tidak ada catatan</div>
+                                    )}
+                                </div>
+                                <div style={{fontWeight:'bold'}}>Rp {(item.price * cart[id]).toLocaleString()}</div>
+                            </div>
+                        )
+                    })}
+                </div>
             </div>
-            <div className="flex mt-4"><button type="button" onClick={() => setStep(2)} className="btn btn-ghost" style={{flex:1}}>Kembali</button><button type="submit" disabled={loading} className="btn btn-primary" style={{flex:2}}>{loading ? "Menyimpan..." : "KIRIM PESANAN ✅"}</button></div>
+            {/* ---------------------------------------- */}
+
+            <div className="card">
+                <div className="flex justify-between mb-4" style={{borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
+                    <span>Total Tagihan</span>
+                    <b className="text-primary" style={{fontSize:'1.2em'}}>Rp {totalPrice.toLocaleString()}</b>
+                </div>
+                
+                <div className="form-group">
+                   <label className="label">👤 Nama Lengkap</label>
+                   <input required className="input" placeholder="Contoh: Budi"
+                      onChange={(e) => setCustomer({...customer, name: e.target.value})} />
+                </div>
+                
+                {/* Note global dihapus karena sudah ada per item, kecuali mau nambah info umum */}
+            </div>
+
+            <div className="flex mt-4">
+                <button type="button" onClick={() => setStep(2)} className="btn btn-ghost" style={{flex:1}}>
+                    ← Ubah Pesanan
+                </button>
+                <button type="submit" disabled={loading} className="btn btn-primary" style={{flex:2}}>
+                    {loading ? "Menyimpan..." : "KIRIM PESANAN ✅"}
+                </button>
+            </div>
           </form>
         )}
-
         {/* STEP 4: SUKSES */}
         {step === 4 && (
           <div className="text-center mt-8">
