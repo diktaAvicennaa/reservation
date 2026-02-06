@@ -206,7 +206,7 @@ export default function BookingPage() {
         {/* STEP 2: MENU */}
         {step === 2 && (
           <div className="mt-4">
-            <h2 className="text-lg mb-4 text-primary">🍽️ Pilih Menu</h2>
+            <h2 className="text-lg mb-4 text-primary"> Pilih Menu</h2>
             
             {/* PROMO CARD */}
             <div onClick={() => setIsPromoOpen(true)} className="card" style={{ background: 'linear-gradient(135deg, #047857 0%, #10B981 100%)', color: 'white', cursor: 'pointer' }}>
