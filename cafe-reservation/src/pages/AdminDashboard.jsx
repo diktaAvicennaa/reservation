@@ -32,6 +32,7 @@ export default function AdminDashboard() {
   const handleStatus = async (id, status) => { await updateDoc(doc(db, "reservations", id), { status }); fetchReservations(); };
   const handleUpdateMeja = async (id, val) => { if(val) await updateDoc(doc(db, "reservations", id), { tableNumber: val }); };
   const handleDeleteReservation = async (id) => { if(confirm("Hapus pesanan ini?")) { await deleteDoc(doc(db, "reservations", id)); fetchReservations(); }};
+  const handleDeleteProduct = async (id) => { if(confirm("Hapus item ini?")) { await deleteDoc(doc(db, "products", id)); fetchProducts(); }};
   
   const handleSaveProduct = async (e) => {
     e.preventDefault();
@@ -61,8 +62,8 @@ export default function AdminDashboard() {
         </div>
 
         {activeTab === 'orders' && (
-          <div className="table-container no-border">
-            <table className="clean-table">
+          <div className="table-container">
+            <table>
               <thead>
                 <tr>
                   <th className="force-nowrap">Waktu</th>
@@ -96,9 +97,9 @@ export default function AdminDashboard() {
                         {res.customerNotes && <div className="badge badge-yellow" style={{marginTop:'5px'}}>📝 {res.customerNotes}</div>}
                     </td>
                     <td className="price-column force-nowrap">Rp {res.totalPrice?.toLocaleString()}</td>
-                    <td className=" table-center force-nowrap">
+                    <td className="table-center force-nowrap">
                         {res.status === 'pending' ? (
-                            <div className="flex flex-col gap-2">
+                            <div className="flex-col gap-2">
                                 <button onClick={()=>handleStatus(res.id,'confirmed')} className="btn btn-primary btn-sm">✔ Terima</button>
                                 <button onClick={()=>handleStatus(res.id,'rejected')} className="btn btn-danger btn-sm">✖ Tolak</button>
                             </div>
@@ -110,10 +111,61 @@ export default function AdminDashboard() {
                 ))}
               </tbody>
             </table>
-            {reservations.length===0 && <div className="empty-state">Belum ada pesanan masuk.</div>}
+          </div>
+        )}
+
+        {activeTab === 'menu' && (
+          <div className="menu-section">
+            <button onClick={() => handleOpenModal(null)} className="btn btn-primary w-full mb-4">+ TAMBAH MENU BARU</button>
+            <div className="menu-grid">
+              {products.map((p) => (
+                <div key={p.id} className="menu-card">
+                  <div className="menu-info">
+                    <h3>{p.name}</h3>
+                    <div className="flex gap-2 mt-1">
+                      <span className={`badge ${p.isAvailable ? 'badge-green' : 'badge-red'}`}>
+                        {p.isAvailable ? 'Ready' : 'Habis'}
+                      </span>
+                      <span className="category-tag">{p.category}</span>
+                    </div>
+                    <p className="price-text">Rp {p.price?.toLocaleString()}</p>
+                  </div>
+                  <div className="flex-col gap-2">
+                    <button onClick={() => handleOpenModal(p)} className="btn btn-sm btn-primary">Edit</button>
+                    <button onClick={() => handleDeleteProduct(p.id)} className="btn btn-sm btn-danger">Hapus</button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
+
+      {isModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>{editingProduct ? 'Edit Menu' : 'Menu Baru'}</h3>
+            <form onSubmit={handleSaveProduct} className="flex-col gap-2">
+              <label>Nama Menu</label>
+              <input className="input-meja w-full" style={{width:'100%'}} required value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} />
+              <label>Harga</label>
+              <input type="number" className="input-meja w-full" style={{width:'100%'}} required value={formData.price} onChange={e=>setFormData({...formData, price:e.target.value})} />
+              <label>Kategori</label>
+              <select className="input-meja w-full" style={{width:'100%'}} value={formData.category} onChange={e=>setFormData({...formData, category:e.target.value})}>
+                <option>Coffee</option><option>Non-Coffee</option><option>Food</option><option>Snack</option>
+              </select>
+              <div className="flex justify-between mt-2">
+                <span>Tersedia?</span>
+                <input type="checkbox" checked={formData.isAvailable} onChange={e=>setFormData({...formData, isAvailable:e.target.checked})} />
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button type="button" onClick={()=>setIsModalOpen(false)} className="btn btn-ghost flex-1">Batal</button>
+                <button type="submit" className="btn btn-primary flex-1">Simpan</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
