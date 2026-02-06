@@ -182,7 +182,12 @@ export default function AdminDashboard() {
                         <small>{res.customerPhone}</small>
                     </td>
                     <td className="table-center">
-                        <input className="input-meja" defaultValue={res.tableNumber} onBlur={(e)=>handleUpdateMeja(res.id, e.target.value)} />
+                        <input 
+                          className="input-meja" 
+                          defaultValue={res.tableNumber || ""} 
+                          onBlur={(e)=>handleUpdateMeja(res.id, e.target.value)}
+                          placeholder="No. Meja"
+                        />
                     </td>
                     <td>
                         {res.items?.map((i,x)=><div key={x} className="force-nowrap"><b>{i.qty}x</b> {i.name}</div>)}
