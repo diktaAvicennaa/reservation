@@ -198,7 +198,7 @@ export default function BookingPage() {
               <div className="form-group"><label className="label">📅 Tanggal</label><input type="date" className="input" value={date} min={new Date().toISOString().split("T")[0]} onChange={(e) => setDate(e.target.value)} /></div>
               <div className="form-group"><label className="label">⏰ Jam</label><input type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} /></div>
             </div>
-            <button onClick={() => setTime("17:45")} className="btn btn-ghost btn-block mb-4" style={{border:'2px solid #047857', color:'#047857'}}>🌙 Shortcut Buka Puasa (17:45)</button>
+            <button onClick={() => setTime("17:45")} className="btn btn-ghost btn-block mb-4" style={{border:'2px solid #047857', color:'#047857'}}>🌙 Buka Puasa (17:45)</button>
             <button onClick={handleStep1Submit} className="btn btn-primary btn-block">LANJUT PILIH MENU ➔</button>
           </div>
         )}
