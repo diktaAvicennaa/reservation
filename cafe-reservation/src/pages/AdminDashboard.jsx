@@ -70,7 +70,10 @@ export default function AdminDashboard() {
 
   const handleUpdateMeja = async (id, val) => { 
     try {
-      if(val) await updateDoc(doc(db, "reservations", id), { tableNumber: val }); 
+      if(val && val.trim() !== "") { // Validasi input tidak kosong
+        await updateDoc(doc(db, "reservations", id), { tableNumber: val }); 
+        fetchReservations(); // Refresh data setelah update
+      }
     } catch (err) {
       setError("❌ Gagal update meja: " + err.message);
     }

@@ -1,10 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Reservations - admin bisa read/write semua, customer hanya bisa create
+    // Reservations - customer bisa read semua, admin bisa read/write semua
     match /reservations/{doc=**} {
-      allow read, write: if request.auth != null; // Admin only
-      allow create: if true; // Customer bisa buat pesanan baru (tanpa login)
+      allow read: if true; // PUBLIC - customer bisa lihat pesanan
+      allow write: if request.auth != null; // Hanya admin bisa update/delete
+      allow create: if true; // Customer bisa buat pesanan baru
     }
     
     match /products/{doc=**} {
