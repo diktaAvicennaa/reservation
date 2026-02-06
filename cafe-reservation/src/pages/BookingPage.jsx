@@ -19,6 +19,10 @@ export default function BookingPage() {
   const [bundles, setBundles] = useState([]); 
   const [totalPrice, setTotalPrice] = useState(0);
 
+  // --- SEARCH MENU ---
+  const [searchQuery, setSearchQuery] = useState("");
+  // --------------------
+
   // --- [BARU] STATE CATATAN PER ITEM ---
   const [itemNotes, setItemNotes] = useState({}); 
   // -------------------------------------
@@ -175,9 +179,12 @@ export default function BookingPage() {
   };
 
   // Logic Filter Kategori
-  const filteredItems = selectedCategory === "All" 
-    ? menuItems 
-    : menuItems.filter(item => item.category === selectedCategory);
+  // Logic Filter Kategori + Search
+  const filteredItems = menuItems.filter(item => {
+    const matchCategory = selectedCategory === "All" || item.category === selectedCategory;
+    const matchSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchCategory && matchSearch;
+  });
 
   return (
     <div style={{ paddingBottom: '100px' }}>
@@ -224,6 +231,18 @@ export default function BookingPage() {
                   {cat}
                 </button>
               ))}
+            </div>
+
+            {/* SEARCH INPUT */}
+            <div className="form-group mt-3">
+              <input 
+                type="text"
+                className="input"
+                placeholder="Cari menu ..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                style={{width:'100%'}}
+              />
             </div>
 
             {/* KERANJANG AKTIF (BUNDLE) */}
