@@ -1,4 +1,4 @@
-/* Reset Dasar */
+* Reset Dasar */
 body {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   margin: 0;
@@ -249,6 +249,73 @@ table td {
   box-shadow: none !important;
   background: transparent !important;
 }
+/* Layout Grid Menu */
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 15px;
+}
+
+/* Kartu Menu */
+.menu-card {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center; /* Menyejajarkan konten di tengah secara vertikal */
+  border: 1px solid #eee;
+}
+
+.menu-info {
+  flex: 1;
+}
+
+.menu-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #1F2937;
+}
+
+.price-text {
+  font-weight: 900;
+  color: #047857;
+  margin: 0;
+}
+
+.category-tag {
+  font-size: 10px;
+  background: #f3f4f6;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: bold;
+  color: #6b7280;
+}
+
+/* Area Tombol Aksi di Menu */
+.menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  justify-content: center; /* Rata tengah vertikal */
+  align-items: center;    /* Rata tengah horizontal */
+  min-width: 100px;
+}
+
+/* Animasi Fade In */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Utility tambahan */
+.flex-1 { flex: 1; }
 
 .clean-table {
   width: 100%;
