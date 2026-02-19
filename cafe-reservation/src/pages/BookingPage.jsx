@@ -270,7 +270,7 @@ export default function BookingPage() {
           <div className="text-center mt-8">
             <h2 className="text-primary" style={{fontSize:'2.2em', margin: '0 0 10px 0'}}>Siap Dipesan! 🚀</h2>
             <p className="mb-4" style={{color: '#666'}}>Satu langkah lagi! Kirim rincian pesanan paket ini ke WhatsApp Admin.</p>
-            <a href={generateWaLink()} target="_blank" rel="noreferrer" className="btn btn-secondary btn-block shadow" style={{padding:'20px', fontSize:'1.2em', display: 'flex', gap: '10px'}}><span style={{fontSize: '1.5em'}}>💬</span> KIRIM KE WHATSAPP</a>
+            <a href={generateWaLink()} target="_blank" rel="noreferrer" className="btn btn-secondary btn-block shadow" style={{padding:'20px', fontSize:'1.2em', display: 'flex', gap: '10px'}}><span style={{fontSize: '1.5em'}}></span> KIRIM KE WHATSAPP</a>
             <button onClick={() => window.location.reload()} className="btn btn-ghost mt-6" style={{color: '#888'}}>↻ Buat Pesanan Baru</button>
           </div>
         )}
