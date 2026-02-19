@@ -7,77 +7,70 @@ export default function BookingPage() {
   const [loading, setLoading] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [time, setTime] = useState(""); 
-  // Hapus 'notes' global di customer karena sudah ada per-item
   const [customer, setCustomer] = useState({ name: "", phone: "" }); 
-  const [menuItems, setMenuItems] = useState([]);
   
-  // State Kategori
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const categories = ["All", "Coffee", "Non-Coffee", "Food", "Snack"];
-
-  const [cart, setCart] = useState({}); 
-  const [bundles, setBundles] = useState([]); 
+  const [packages, setPackages] = useState([]);
+  const [products, setProducts] = useState([]); // Butuh untuk membaca nama menu
+  const [bundles, setBundles] = useState([]); // Keranjang Paket
   const [totalPrice, setTotalPrice] = useState(0);
 
-  // --- SEARCH MENU ---
-  const [searchQuery, setSearchQuery] = useState("");
-  // --------------------
-
-  // --- [BARU] STATE CATATAN PER ITEM ---
-  const [itemNotes, setItemNotes] = useState({}); 
-  // -------------------------------------
-
-  const [isPromoOpen, setIsPromoOpen] = useState(false);
-  const [promoSelection, setPromoSelection] = useState({ food: "", drink: "" });
-
-  // Hitung total item
-  const totalItemsInCart = Object.values(cart).reduce((a, b) => a + b, 0) + bundles.length;
-
-  useEffect(() => { fetchMenu(); }, []);
+  // State untuk Modal Pilihan Pelanggan
+  const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
+  const [selectedPkg, setSelectedPkg] = useState(null);
+  const [pkgSelection, setPkgSelection] = useState({ foodId: "", drinkId: "" });
 
   useEffect(() => {
-    let total = 0;
-    Object.keys(cart).forEach((itemId) => {
-      const item = menuItems.find(p => p.id === itemId);
-      if (item) total += item.price * cart[itemId];
-    });
-    total += bundles.length * 25000;
-    setTotalPrice(total);
-  }, [cart, menuItems, bundles]);
+      const fetchData = async () => {
+          // Ambil Paket
+          const pkgSnap = await getDocs(query(collection(db, "packages"), where("isAvailable", "==", true)));
+          setPackages(pkgSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+          // Ambil Produk (Menu)
+          const prodSnap = await getDocs(query(collection(db, "products"), where("isAvailable", "==", true)));
+          setProducts(prodSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      };
+      fetchData();
+  }, []);
 
-  const fetchMenu = async () => {
-    try {
-      const q = query(collection(db, "products"), where("isAvailable", "==", true));
-      const snapshot = await getDocs(q);
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setMenuItems(data);
-    } catch (error) { console.error(error); }
-  };
+  useEffect(() => {
+    const total = bundles.reduce((sum, b) => sum + b.price, 0);
+    setTotalPrice(total);
+  }, [bundles]);
 
   const handleStep1Submit = () => {
     if(!date || !time) return alert("Mohon isi tanggal & jam kedatangan dulu ya 🙏");
-    const selectedDateTime = new Date(`${date}T${time}`);
-    const now = new Date();
-    if (selectedDateTime < now) return alert("Waktu sudah berlalu! Mohon pilih jadwal masa depan 😅");
+    if (new Date(`${date}T${time}`) < new Date()) return alert("Waktu sudah berlalu! Mohon pilih jadwal masa depan 😅");
     setStep(2);
   };
 
-  // --- LOGIC PAKET (BUNDLE) ---
-  const handleAddBundle = () => {
-      const food = menuItems.find(i => i.id === promoSelection.food);
-      const drink = menuItems.find(i => i.id === promoSelection.drink);
-      if (!food || !drink) return alert("Wajib pilih 1 Makanan & 1 Minuman!");
+  // Membuka Modal Pilihan Paket
+  const openPackageSelection = (pkg) => {
+      setSelectedPkg(pkg);
+      setPkgSelection({ foodId: "", drinkId: "" });
+      setIsPackageModalOpen(true);
+  };
 
-      const newBundle = {
-          id: `promo-${Date.now()}`,
-          name: `Paket Ramadhan: ${food.name} + ${drink.name}`,
-          price: 25000,
-          qty: 1,
-          note: "" // Default catatan kosong
-      };
-      setBundles([...bundles, newBundle]);
-      setIsPromoOpen(false);
-      setPromoSelection({ food: "", drink: "" });
+  // Menyimpan Paket ke Keranjang
+  const handleAddBundleToCart = () => {
+      const needsFood = selectedPkg.foodOptions?.length > 0;
+      const needsDrink = selectedPkg.drinkOptions?.length > 0;
+
+      if (needsFood && !pkgSelection.foodId) return alert("Silakan pilih makanannya!");
+      if (needsDrink && !pkgSelection.drinkId) return alert("Silakan pilih minumannya!");
+
+      const foodName = products.find(p => p.id === pkgSelection.foodId)?.name || "";
+      const drinkName = products.find(p => p.id === pkgSelection.drinkId)?.name || "";
+      
+      const selectionsText = [foodName, drinkName].filter(Boolean).join(" & ");
+
+      setBundles([...bundles, {
+          id: `pkg-${Date.now()}`,
+          name: selectedPkg.name,
+          price: selectedPkg.price,
+          selections: selectionsText || "Tanpa pilihan khusus",
+          note: ""
+      }]);
+      
+      setIsPackageModalOpen(false);
   };
 
   const removeBundle = (index) => {
@@ -86,70 +79,29 @@ export default function BookingPage() {
       setBundles(newBundles);
   };
 
-  // Update Catatan Paket
   const updateBundleNote = (index, text) => {
       const newBundles = [...bundles];
       newBundles[index].note = text;
       setBundles(newBundles);
   };
 
-  // --- LOGIC MENU SATUAN ---
-  const addToCart = (itemId) => { setCart(prev => ({ ...prev, [itemId]: (prev[itemId] || 0) + 1 })); };
-  const removeFromCart = (itemId) => {
-    setCart(prev => {
-      const currentQty = prev[itemId] || 0;
-      if (currentQty <= 1) { 
-          const newCart = { ...prev }; 
-          delete newCart[itemId]; 
-          // Hapus catatan juga jika item dihapus
-          const newNotes = { ...itemNotes };
-          delete newNotes[itemId];
-          setItemNotes(newNotes);
-          return newCart; 
-      }
-      return { ...prev, [itemId]: currentQty - 1 };
-    });
-  };
-
-  // Update Catatan Menu Satuan
-  const handleItemNoteChange = (id, text) => {
-      setItemNotes(prev => ({ ...prev, [id]: text }));
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    // 1. Siapkan Item Satuan + Catatan
-    const regularItems = Object.keys(cart).map(itemId => {
-      const item = menuItems.find(p => p.id === itemId);
-      return { 
-          name: item.name, 
-          qty: cart[itemId], 
-          price: item.price, 
-          subtotal: item.price * cart[itemId],
-          note: itemNotes[itemId] || "" // Ambil catatan
-      };
-    });
-
-    // 2. Siapkan Paket + Catatan
-    const bundleItems = bundles.map(b => ({
+    const orderItems = bundles.map(b => ({
         name: b.name, 
         qty: 1, 
-        price: 25000, 
-        subtotal: 25000,
-        note: b.note || "" // Ambil catatan paket
+        price: b.price, 
+        subtotal: b.price,
+        selections: b.selections, // Pilihan kombinasi
+        note: b.note || "" 
     }));
 
     try {
       await addDoc(collection(db, "reservations"), {
-        date, time, 
-        customerName: customer.name, 
-        customerPhone: customer.phone,
-        items: [...regularItems, ...bundleItems], 
-        totalPrice: totalPrice, 
-        status: "pending", 
-        createdAt: new Date()
+        date, time, customerName: customer.name, customerPhone: customer.phone,
+        items: orderItems, totalPrice, status: "pending", createdAt: new Date()
       });
       setStep(4); 
     } catch (error) { alert("Gagal menyimpan reservasi."); } finally { setLoading(false); }
@@ -157,42 +109,18 @@ export default function BookingPage() {
 
   const generateWaLink = () => {
     const phoneNumber = "6287819502426"; 
-    
-    // Format teks Menu Satuan dengan Catatan
-    const regularText = Object.keys(cart).map(id => {
-        const item = menuItems.find(p => p.id === id);
-        // Catatan dibuat miring dengan tanda _
-        const note = itemNotes[id] ? ` _(Catatan: ${itemNotes[id]})_` : "";
-        return `- ${item.name} (${cart[id]}x)${note}`;
-    }).join("\n");
-
-    // Format teks Paket dengan Catatan
-    const bundleText = bundles.map(b => {
+    const orderText = bundles.map(b => {
         const note = b.note ? ` _(Catatan: ${b.note})_` : "";
-        return `- ${b.name}${note}`;
-    }).join("\n");
+        return `- 1x *${b.name}*\n  > Pilihan: ${b.selections}${note}`;
+    }).join("\n\n");
 
-    // PERUBAHAN DI SINI: Menambahkan tanda bintang (*) agar tebal
-    const message = `Halo Cafe Tropis 🌵,\nSaya ingin reservasi:\n\n *Nama:* ${customer.name}\n *Jam:* ${time}, ${date}\n\n *Order:*\n${regularText}\n${bundleText}\n\n *Total: Rp ${totalPrice.toLocaleString()}*`;
-    
+    const message = `Halo Cafe Tropis 🌵,\nSaya ingin reservasi:\n\n👤 *Nama:* ${customer.name}\n📅 *Jam:* ${time}, ${date}\n\n📦 *Order Paket:*\n${orderText}\n\n💰 *Total: Rp ${totalPrice.toLocaleString()}*`;
     return `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
   };
 
-  // Logic Filter Kategori
-  // Logic Filter Kategori + Search
-  const filteredItems = menuItems.filter(item => {
-    const matchCategory = selectedCategory === "All" || item.category === selectedCategory;
-    const matchSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchCategory && matchSearch;
-  });
-
   return (
-    <div style={{ paddingBottom: '100px' }}>
-      {/* NAVBAR */}
-      <div className="navbar">
-        <div className="logo">🌵 Cafe Tropis</div>
-        {step < 4 && <div className="badge badge-green">Langkah {step} / 3</div>}
-      </div>
+    <div style={{ paddingBottom: '120px' }}>
+      <div className="navbar"><div className="logo">🌵 Cafe Tropis</div>{step < 4 && <div className="badge badge-green">Langkah {step} / 3</div>}</div>
 
       <div className="container">
         
@@ -200,293 +128,153 @@ export default function BookingPage() {
         {step === 1 && (
           <div className="text-center mt-4">
             <h2 className="text-lg">Kapan mau mampir?</h2>
-            <p className="mb-4" style={{color:'#666'}}>Atur jadwal kunjunganmu.</p>
-            <div className="card text-left">
-              <div className="form-group">
-                <label className="label" htmlFor="visit-date">Tanggal</label>
-                <input
-                  id="visit-date"
-                  name="visitDate"
-                  type="date"
-                  className="input"
-                  value={date}
-                  min={new Date().toISOString().split("T")[0]}
-                  onChange={(e) => setDate(e.target.value)}
-                />
-              </div>
-              <div className="form-group">
-                <label className="label" htmlFor="visit-time"> Jam</label>
-                <input
-                  id="visit-time"
-                  name="visitTime"
-                  type="time"
-                  className="input"
-                  value={time}
-                  onChange={(e) => setTime(e.target.value)}
-                />
-              </div>
+            <div className="card text-left mt-4">
+              <div className="form-group"><label className="label">📅 Tanggal</label><input type="date" className="input" value={date} min={new Date().toISOString().split("T")[0]} onChange={(e) => setDate(e.target.value)} /></div>
+              <div className="form-group"><label className="label">⏰ Jam</label><input type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} /></div>
             </div>
-            <button onClick={() => setTime("17:45")} className="btn btn-ghost btn-block mb-4" style={{border:'2px solid #047857', color:'#047857'}}>🌙 Buka Puasa (17:45)</button>
-            <button onClick={handleStep1Submit} className="btn btn-primary btn-block">LANJUT PILIH MENU ➔</button>
+            <button onClick={() => setTime("17:45")} className="btn btn-ghost btn-block mb-4" style={{border:'2px solid #047857', color:'#047857'}}>🌙 Shortcut Buka Puasa (17:45)</button>
+            <button onClick={handleStep1Submit} className="btn btn-primary btn-block" style={{padding: '15px', fontSize: '1.1em'}}>LANJUT PILIH PAKET ➔</button>
           </div>
         )}
 
-        {/* STEP 2: MENU */}
+        {/* STEP 2: PILIH PAKET */}
         {step === 2 && (
           <div className="mt-4">
-            <h2 className="text-lg mb-4 text-primary"> Pilih Menu</h2>
+            <h2 className="text-lg mb-4 text-primary">📦 Pilih Paket Tersedia</h2>
             
-            {/* PROMO CARD */}
-            <div onClick={() => setIsPromoOpen(true)} className="card" style={{ background: 'linear-gradient(135deg, #047857 0%, #10B981 100%)', color: 'white', cursor: 'pointer' }}>
-                <h3 className="text-lg" style={{margin:0}}>☪️ Paket Ramadhan</h3>
-                <p style={{margin:'5px 0'}}>Rp 25.000 (Hemat!)</p>
-                <small>Klik untuk pilih menu</small>
-            </div>
-
-            {/* TAB KATEGORI */}
-            <div className="category-scroll">
-              {categories.map((cat) => (
-                <button key={cat} onClick={() => setSelectedCategory(cat)}
-                  className={`btn ${selectedCategory === cat ? 'btn-primary' : 'btn-ghost'}`}
-                  style={{ borderRadius: '20px', whiteSpace: 'nowrap', padding: '8px 16px' }}>
-                  {cat}
-                </button>
-              ))}
-            </div>
-
-            {/* SEARCH INPUT */}
-            <div className="form-group mt-3">
-              <input 
-                id="menu-search"
-                name="menuSearch"
-                type="text"
-                className="input"
-                placeholder="Cari menu ..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{width:'100%'}}
-                aria-label="Cari menu"
-              />
-            </div>
-
-            {/* KERANJANG AKTIF (BUNDLE) */}
-            {bundles.length > 0 && (
-                 <div className="mb-4">
-                    {bundles.map((b, idx) => (
-                        <div key={b.id} className="card" style={{padding:'15px', marginBottom:'10px', borderLeft:'5px solid #047857'}}>
-                            <div className="flex justify-between">
-                                <div><b>☪️ Paket Ramadhan</b><div style={{fontSize:'0.8em', color:'#666'}}>{b.name.replace("Paket Ramadhan: ", "")}</div></div>
-                                <div className="flex"><b>Rp 25.000</b><button onClick={() => removeBundle(idx)} className="btn btn-danger" style={{padding:'5px 10px', marginLeft:'10px'}}>✕</button></div>
-                            </div>
-                            {/* Input Catatan Paket */}
-                            <input 
-                                id={`bundle-note-${idx}`}
-                                name={`bundleNote-${idx}`}
-                                className="input" 
-                                style={{marginTop:'10px', padding:'8px', fontSize:'0.9em', background:'#f9f9f9'}}
-                                placeholder="Catatan Paket..."
-                                value={b.note}
-                                onChange={(e) => updateBundleNote(idx, e.target.value)}
-                                aria-label="Catatan paket"
-                            />
-                        </div>
-                    ))}
-                 </div>
-            )}
-
-            {/* LIST MENU (SATUAN) */}
-            <h3>Menu Satuan</h3>
             <div>
-              {filteredItems.length === 0 ? (
-                <div className="text-center" style={{padding:'40px', color:'#999'}}>Belum ada menu di kategori ini.</div>
+              {packages.length === 0 ? (
+                <div className="text-center card" style={{padding:'40px', color:'#999'}}>Belum ada paket.</div>
               ) : (
-                filteredItems.map((item) => (
-                  <div key={item.id} className="card" style={{padding:'15px'}}>
-                    <div className="flex justify-between items-center">
-                        <div>
-                           <h4 style={{margin:0}}>{item.name}</h4>
-                           <span className="badge badge-green" style={{fontSize:'0.7em'}}>{item.category}</span>
-                           <div className="text-primary font-bold">Rp {item.price.toLocaleString()}</div>
-                        </div>
-                        
-                        {cart[item.id] > 0 ? (
-                          <div className="flex">
-                            <button onClick={() => removeFromCart(item.id)} className="btn btn-ghost" style={{padding:'5px 10px'}}>-</button>
-                            <span style={{padding:'5px 10px', fontWeight:'bold'}}>{cart[item.id]}</span>
-                            <button onClick={() => addToCart(item.id)} className="btn btn-primary" style={{padding:'5px 10px'}}>+</button>
-                          </div>
-                        ) : (
-                          <button onClick={() => addToCart(item.id)} className="btn btn-primary" style={{padding:'8px 15px'}}>+ Add</button>
-                        )}
+                packages.map((pkg) => (
+                  <div key={pkg.id} className="card" style={{padding:'20px', borderTop: '5px solid #047857', marginBottom: '20px'}}>
+                    <div style={{marginBottom: '15px'}}>
+                       <h3 style={{margin: '0 0 5px 0', color: '#047857'}}>{pkg.name}</h3>
+                       <div className="text-primary font-bold" style={{fontSize: '1.2em'}}>Rp {pkg.price.toLocaleString()}</div>
                     </div>
-
-                    {/* INPUT CATATAN (Muncul jika ada di keranjang) */}
-                    {cart[item.id] > 0 && (
-                        <div style={{marginTop:'10px'}}>
-                            <input 
-                                id={`item-note-${item.id}`}
-                                name={`itemNote-${item.id}`}
-                                className="input" 
-                                style={{padding:'8px', fontSize:'0.9em', background:'#f9f9f9'}}
-                                placeholder={`Catatan untuk ${item.name}...`}
-                                value={itemNotes[item.id] || ""}
-                                onChange={(e) => handleItemNoteChange(item.id, e.target.value)}
-                                aria-label={`Catatan untuk ${item.name}`}
-                            />
-                        </div>
-                    )}
+                    <button onClick={() => openPackageSelection(pkg)} className="btn btn-primary btn-block">+ Tambah Paket Ini</button>
                   </div>
                 ))
               )}
             </div>
+
+            {/* KERANJANG AKTIF */}
+            {bundles.length > 0 && (
+                 <div className="mt-8">
+                    <h3 style={{borderBottom: '1px solid #ddd', paddingBottom: '10px'}}>Keranjang Anda:</h3>
+                    {bundles.map((b, idx) => (
+                        <div key={b.id} className="card" style={{padding:'15px', marginBottom:'10px', background: '#f4f7f6'}}>
+                            <div className="flex justify-between items-start mb-2">
+                                <div>
+                                    <b style={{color: '#047857'}}>{b.name}</b>
+                                    <div style={{fontSize:'0.85em', color:'#555', marginTop:'2px'}}>Pilihan: <b>{b.selections}</b></div>
+                                </div>
+                                <div className="flex" style={{flexDirection: 'column', alignItems:'flex-end'}}>
+                                    <b>Rp {b.price.toLocaleString()}</b>
+                                    <button onClick={() => removeBundle(idx)} className="btn btn-danger" style={{padding:'4px 10px', marginTop:'5px', fontSize:'0.75em'}}>Hapus ✕</button>
+                                </div>
+                            </div>
+                            <input className="input" style={{padding:'8px', fontSize:'0.85em', background:'#fff', border: '1px solid #ccc', marginTop: '10px'}}
+                                placeholder="Catatan spesifik (Misal: Es dipisah)..." value={b.note} onChange={(e) => updateBundleNote(idx, e.target.value)} />
+                        </div>
+                    ))}
+                 </div>
+            )}
             
             {/* FOOTER KERANJANG */}
-            <div style={{ position:'fixed', bottom:0, left:0, right:0, padding:'20px', background:'white', borderTop:'1px solid #eee', boxShadow:'0 -2px 10px rgba(0,0,0,0.1)' }}>
-               <div className="container flex justify-between">
+            <div style={{ position:'fixed', bottom:0, left:0, right:0, padding:'20px', background:'white', borderTop:'1px solid #eee', boxShadow:'0 -5px 15px rgba(0,0,0,0.05)', zIndex: 100 }}>
+               <div className="container flex justify-between align-center" style={{padding: 0}}>
                   <div>
-                    <small>Total Bayar</small>
-                    <div className="text-lg text-primary">Rp {totalPrice.toLocaleString()}</div>
+                    <small style={{fontWeight: 'bold', color: '#666'}}>Total Estimasi</small>
+                    <div className="text-lg text-primary" style={{fontWeight: '900'}}>Rp {totalPrice.toLocaleString()}</div>
                   </div>
-                  <button onClick={() => { 
-                      if(totalItemsInCart < 4) return alert("Pilih minimal 4 menu untuk melanjutkan 🙏"); 
-                      setStep(3); 
-                    }} className="btn btn-primary">
-                    CHECKOUT ➔
-                  </button>
+                  <button onClick={() => { if(bundles.length === 0) return alert("Pilih minimal 1 paket 🙏"); setStep(3); }} className="btn btn-primary" style={{padding: '12px 25px', fontSize: '1.1em'}}>CHECKOUT ➔</button>
                </div>
             </div>
           </div>
         )}
 
-        {/* STEP 3: KONFIRMASI & REVIEW */}
+        {/* MODAL PELANGGAN MEMILIH ISI PAKET */}
+        {isPackageModalOpen && selectedPkg && (
+            <div className="modal-overlay">
+                <div className="modal-content">
+                    <h3 style={{color: '#047857', borderBottom: '1px solid #eee', paddingBottom: '10px'}}>Racik {selectedPkg.name}</h3>
+                    
+                    {/* JIKA PAKET PUNYA OPSI MAKANAN */}
+                    {selectedPkg.foodOptions && selectedPkg.foodOptions.length > 0 && (
+                        <div className="form-group mt-4">
+                            <label className="label">Pilih Makanan:</label>
+                            <select className="select" value={pkgSelection.foodId} onChange={e => setPkgSelection({...pkgSelection, foodId: e.target.value})}>
+                                <option value="">-- Pilih Makanan --</option>
+                                {selectedPkg.foodOptions.map(id => {
+                                    const p = products.find(prod => prod.id === id);
+                                    return p ? <option key={id} value={id}>{p.name}</option> : null;
+                                })}
+                            </select>
+                        </div>
+                    )}
+
+                    {/* JIKA PAKET PUNYA OPSI MINUMAN */}
+                    {selectedPkg.drinkOptions && selectedPkg.drinkOptions.length > 0 && (
+                        <div className="form-group mt-4">
+                            <label className="label">Pilih Minuman:</label>
+                            <select className="select" value={pkgSelection.drinkId} onChange={e => setPkgSelection({...pkgSelection, drinkId: e.target.value})}>
+                                <option value="">-- Pilih Minuman --</option>
+                                {selectedPkg.drinkOptions.map(id => {
+                                    const p = products.find(prod => prod.id === id);
+                                    return p ? <option key={id} value={id}>{p.name}</option> : null;
+                                })}
+                            </select>
+                        </div>
+                    )}
+
+                    <div className="flex mt-4 pt-4" style={{borderTop: '1px solid #eee'}}>
+                        <button onClick={() => setIsPackageModalOpen(false)} className="btn btn-ghost" style={{flex:1}}>Batal</button>
+                        <button onClick={handleAddBundleToCart} className="btn btn-primary" style={{flex:2}}>MASUKKAN KERANJANG</button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* STEP 3 & 4 (KONFIRMASI & SUKSES) */}
         {step === 3 && (
           <form onSubmit={handleSubmit} className="mt-4">
             <h2 className="text-center text-primary mb-4">📝 Konfirmasi Pesanan</h2>
-            
-            {/* --- [BARU] RINCIAN MENU YANG DIPESAN --- */}
             <div className="card mb-4" style={{background:'#f8fafc', border:'1px solid #e2e8f0'}}>
-                <h3 style={{marginTop:0, fontSize:'1rem', borderBottom:'1px solid #ddd', paddingBottom:'10px', marginBottom:'10px'}}>
-                    Cek Pesananmu:
-                </h3>
-                
+                <h3 style={{marginTop:0, fontSize:'1rem', borderBottom:'1px solid #ddd', paddingBottom:'10px', marginBottom:'10px'}}>Cek Pesananmu:</h3>
                 <div style={{maxHeight:'250px', overflowY:'auto'}}>
-                    {/* 1. List Paket Ramadhan */}
                     {bundles.map((b, i) => (
-                        <div key={i} style={{display:'flex', justifyContent:'space-between', marginBottom:'12px', fontSize:'0.9em', borderBottom:'1px dashed #eee', paddingBottom:'5px'}}>
-                            <div style={{flex:1}}>
-                                <div style={{fontWeight:'bold', color:'#047857'}}>{b.name}</div>
-                                {b.note ? (
-                                    <div style={{fontSize:'0.85em', color:'#d97706', fontStyle:'italic'}}>📝 {b.note}</div>
-                                ) : (
-                                    <div style={{fontSize:'0.8em', color:'#999', fontStyle:'italic'}}>Tidak ada catatan</div>
-                                )}
+                        <div key={i} style={{display:'flex', justifyContent:'space-between', marginBottom:'12px', fontSize:'0.95em', borderBottom:'1px dashed #ccc', paddingBottom:'8px'}}>
+                            <div style={{flex:1, paddingRight: '10px'}}>
+                                <div style={{fontWeight:'bold', color: '#047857'}}>1x {b.name}</div>
+                                <div style={{fontSize:'0.85em', color:'#666', marginTop: '2px'}}>Pilihan: {b.selections}</div>
+                                {b.note && <div style={{fontSize:'0.85em', color:'#d97706', fontStyle:'italic', marginTop: '4px'}}>📝 {b.note}</div>}
                             </div>
                             <div style={{fontWeight:'bold'}}>Rp {b.price.toLocaleString()}</div>
                         </div>
                     ))}
-
-                    {/* 2. List Menu Satuan */}
-                    {Object.keys(cart).map((id) => {
-                        const item = menuItems.find(i => i.id === id);
-                        if(!item) return null;
-                        return (
-                            <div key={id} style={{display:'flex', justifyContent:'space-between', marginBottom:'12px', fontSize:'0.9em', borderBottom:'1px dashed #eee', paddingBottom:'5px'}}>
-                                <div style={{flex:1}}>
-                                    <div style={{fontWeight:'bold'}}>
-                                        {cart[id]}x {item.name}
-                                    </div>
-                                    <div style={{fontSize:'0.8em', color:'#666'}}>@ Rp {item.price.toLocaleString()}</div>
-                                    
-                                    {itemNotes[id] ? (
-                                        <div style={{fontSize:'0.85em', color:'#d97706', fontStyle:'italic'}}>📝 {itemNotes[id]}</div>
-                                    ) : (
-                                        <div style={{fontSize:'0.8em', color:'#999', fontStyle:'italic'}}>Tidak ada catatan</div>
-                                    )}
-                                </div>
-                                <div style={{fontWeight:'bold'}}>Rp {(item.price * cart[id]).toLocaleString()}</div>
-                            </div>
-                        )
-                    })}
                 </div>
             </div>
-            {/* ---------------------------------------- */}
-
             <div className="card">
-                <div className="flex justify-between mb-4" style={{borderBottom:'1px solid #eee', paddingBottom:'10px'}}>
-                    <span>Total Tagihan</span>
-                    <b className="text-primary" style={{fontSize:'1.2em'}}>Rp {totalPrice.toLocaleString()}</b>
-                </div>
-                
-                <div className="form-group">
-                   <label className="label" htmlFor="customer-name">👤 Nama Lengkap</label>
-                   <input
-                      id="customer-name"
-                      name="customerName"
-                      required
-                      className="input"
-                      placeholder="Contoh: Budi"
-                      onChange={(e) => setCustomer({...customer, name: e.target.value})}
-                   />
-                </div>
-                
-                {/* Hapus pilihan makanan/minuman di langkah 3 */}
+                <div className="flex justify-between mb-4" style={{borderBottom:'1px solid #eee', paddingBottom:'10px'}}><span style={{fontWeight: 'bold', color: '#666'}}>Total Tagihan</span><b className="text-primary" style={{fontSize:'1.3em'}}>Rp {totalPrice.toLocaleString()}</b></div>
+                <div className="form-group"><label className="label">👤 Nama Lengkap</label><input required className="input" placeholder="Contoh: Budi" onChange={(e) => setCustomer({...customer, name: e.target.value})} /></div>
+                <div className="form-group"><label className="label">📱 Nomor WhatsApp</label><input required type="tel" className="input" placeholder="08..." onChange={(e) => setCustomer({...customer, phone: e.target.value})} /></div>
             </div>
-
-            <div className="flex mt-4">
-                <button type="button" onClick={() => setStep(2)} className="btn btn-ghost" style={{flex:1}}>
-                    ← Ubah Pesanan
-                </button>
-                <button type="submit" disabled={loading} className="btn btn-primary" style={{flex:2}}>
-                    {loading ? "Menyimpan..." : "KIRIM PESANAN ✅"}
-                </button>
+            <div className="flex mt-4 gap-2">
+                <button type="button" onClick={() => setStep(2)} className="btn btn-ghost" style={{flex:1, border: '1px solid #ddd'}}>← Ubah Pesanan</button>
+                <button type="submit" disabled={loading} className="btn btn-primary" style={{flex:2}}>{loading ? "Proses..." : "KIRIM PESANAN ✅"}</button>
             </div>
           </form>
         )}
-        {/* STEP 4: SUKSES */}
         {step === 4 && (
           <div className="text-center mt-8">
-            <h2 className="text-primary" style={{fontSize:'2em'}}>Pesanan Siap! </h2>
-            <p className="mb-4">Langkah terakhir konfirmasi ke admin.</p>
-            <a href={generateWaLink()} target="_blank" rel="noreferrer" className="btn btn-secondary btn-block" style={{padding:'20px', fontSize:'1.2em'}}> KIRIM KE ADMIN</a>
-            <button onClick={() => window.location.reload()} className="btn btn-ghost mt-4">↻ Buat Pesanan Baru</button>
+            <h2 className="text-primary" style={{fontSize:'2.2em', margin: '0 0 10px 0'}}>Siap Dipesan! 🚀</h2>
+            <p className="mb-4" style={{color: '#666'}}>Satu langkah lagi! Kirim rincian pesanan paket ini ke WhatsApp Admin.</p>
+            <a href={generateWaLink()} target="_blank" rel="noreferrer" className="btn btn-secondary btn-block shadow" style={{padding:'20px', fontSize:'1.2em', display: 'flex', gap: '10px'}}><span style={{fontSize: '1.5em'}}>💬</span> KIRIM KE WHATSAPP</a>
+            <button onClick={() => window.location.reload()} className="btn btn-ghost mt-6" style={{color: '#888'}}>↻ Buat Pesanan Baru</button>
           </div>
         )}
       </div>
-
-      {/* MODAL PROMO */}
-      {isPromoOpen && (
-        <div className="modal-overlay">
-            <div className="modal-content">
-                <div className="flex justify-between mb-4">
-                  <h3>Pilih Menu Paket</h3>
-                  <button onClick={() => setIsPromoOpen(false)} className="btn btn-ghost" style={{padding:'5px'}}>✕</button>
-                </div>
-                <div className="form-group">
-                  <label className="label" htmlFor="promo-food">Makanan</label>
-                  <select
-                    id="promo-food"
-                    name="promoFood"
-                    className="select"
-                    onChange={(e) => setPromoSelection({...promoSelection, food: e.target.value})}>
-                    <option value="">-- Pilih Makanan --</option>
-                    {menuItems.filter(i => i.category === 'Food').map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label className="label" htmlFor="promo-drink">Minuman</label>
-                  <select
-                    id="promo-drink"
-                    name="promoDrink"
-                    className="select"
-                    onChange={(e) => setPromoSelection({...promoSelection, drink: e.target.value})}>
-                    <option value="">-- Pilih Minuman --</option>
-                    {menuItems.filter(i => i.category === 'Coffee' || i.category === 'Non-Coffee').map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
-                  </select>
-                </div>
-                <button onClick={handleAddBundle} className="btn btn-primary btn-block mt-4">SIMPAN PAKET</button>
-            </div>
-        </div>
-      )}
     </div>
   );
 }
