@@ -129,8 +129,8 @@ export default function BookingPage() {
           <div className="text-center mt-4">
             <h2 className="text-lg">Kapan mau mampir?</h2>
             <div className="card text-left mt-4">
-              <div className="form-group"><label className="label">📅 Tanggal</label><input type="date" className="input" value={date} min={new Date().toISOString().split("T")[0]} onChange={(e) => setDate(e.target.value)} /></div>
-              <div className="form-group"><label className="label">⏰ Jam</label><input type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} /></div>
+              <div className="form-group"><label className="label"> Tanggal</label><input type="date" className="input" value={date} min={new Date().toISOString().split("T")[0]} onChange={(e) => setDate(e.target.value)} /></div>
+              <div className="form-group"><label className="label"> Jam</label><input type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} /></div>
             </div>
             <button onClick={() => setTime("17:45")} className="btn btn-ghost btn-block mb-4" style={{border:'2px solid #047857', color:'#047857'}}>🌙 Shortcut Buka Puasa (17:45)</button>
             <button onClick={handleStep1Submit} className="btn btn-primary btn-block" style={{padding: '15px', fontSize: '1.1em'}}>LANJUT PILIH PAKET ➔</button>
@@ -140,7 +140,7 @@ export default function BookingPage() {
         {/* STEP 2: PILIH PAKET */}
         {step === 2 && (
           <div className="mt-4">
-            <h2 className="text-lg mb-4 text-primary">📦 Pilih Paket Tersedia</h2>
+            <h2 className="text-lg mb-4 text-primary">Pilih Paket Tersedia</h2>
             
             <div>
               {packages.length === 0 ? (
@@ -257,8 +257,8 @@ export default function BookingPage() {
             </div>
             <div className="card">
                 <div className="flex justify-between mb-4" style={{borderBottom:'1px solid #eee', paddingBottom:'10px'}}><span style={{fontWeight: 'bold', color: '#666'}}>Total Tagihan</span><b className="text-primary" style={{fontSize:'1.3em'}}>Rp {totalPrice.toLocaleString()}</b></div>
-                <div className="form-group"><label className="label">👤 Nama Lengkap</label><input required className="input" placeholder="Contoh: Budi" onChange={(e) => setCustomer({...customer, name: e.target.value})} /></div>
-                <div className="form-group"><label className="label">📱 Nomor WhatsApp</label><input required type="tel" className="input" placeholder="08..." onChange={(e) => setCustomer({...customer, phone: e.target.value})} /></div>
+                <div className="form-group"><label className="label"> Nama Lengkap</label><input required className="input" placeholder="Contoh: Budi" onChange={(e) => setCustomer({...customer, name: e.target.value})} /></div>
+                {/* <div className="form-group"><label className="label">📱 Nomor WhatsApp</label><input required type="tel" className="input" placeholder="08..." onChange={(e) => setCustomer({...customer, phone: e.target.value})} /></div> */}
             </div>
             <div className="flex mt-4 gap-2">
                 <button type="button" onClick={() => setStep(2)} className="btn btn-ghost" style={{flex:1, border: '1px solid #ddd'}}>← Ubah Pesanan</button>
