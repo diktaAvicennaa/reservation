@@ -108,25 +108,44 @@ export default function OrderList() {
                 <tbody>
                   {reservations.map((res) => (
                     <tr key={res.id}>
-                      <td className="force-nowrap">
-                        <div style={{fontWeight:'bold'}}>{res.time}</div>
+                      <td className="force-nowrap" style={{verticalAlign: 'top'}}>
+                        <div style={{fontWeight:'bold', color: '#047857'}}>{res.time}</div>
                         <small>{res.date}</small>
                       </td>
-                      <td className="table-center force-nowrap">
+                      <td className="table-center force-nowrap" style={{verticalAlign: 'top'}}>
                         <b>{res.customerName}</b><br/>
                         <small>{res.customerPhone}</small>
                       </td>
-                      <td className="table-center">
+                      <td className="table-center" style={{verticalAlign: 'top'}}>
                         <b>{res.tableNumber || '-'}</b>
                       </td>
-                      <td>
+                      <td style={{verticalAlign: 'top'}}>
                         {sortItemsByCategory(res.items)?.map((i,x)=>(
-                          <div key={x} className="force-nowrap"><b>{i.qty}x</b> {i.name}</div>
+                          <div key={x} style={{marginBottom:'10px', background:'#f9f9f9', padding:'8px', borderRadius:'6px'}}>
+                            <div className="force-nowrap">
+                                <b style={{color: '#047857'}}>{i.qty}x</b> <b>{i.name}</b>
+                            </div>
+                            
+                            {/* MENAMPILKAN DETAIL MENU YANG DIPILIH */}
+                            {i.selections && (
+                                <div style={{color: '#555', fontSize: '0.9em', marginTop: '2px'}}>
+                                    ↳ {i.selections}
+                                </div>
+                            )}
+
+                            {/* MENAMPILKAN CATATAN PER PAKET */}
+                            {i.note && (
+                                <div style={{fontSize: '0.85em', color: '#d97706', fontStyle: 'italic', marginTop: '2px'}}>
+                                    📝 {i.note}
+                                </div>
+                            )}
+                          </div>
                         ))}
-                        {res.customerNotes && <div className="badge badge-yellow" style={{marginTop:'5px'}}>📝 {res.customerNotes}</div>}
+                        {/* CATATAN GLOBAL */}
+                        {res.customerNotes && <div className="badge badge-yellow" style={{marginTop:'5px', display:'inline-block'}}>📝 {res.customerNotes}</div>}
                       </td>
-                      <td className="price-column">Rp {res.totalPrice?.toLocaleString()}</td>
-                      <td className="table-center">
+                      <td className="price-column" style={{verticalAlign: 'top', fontWeight: 'bold'}}>Rp {res.totalPrice?.toLocaleString()}</td>
+                      <td className="table-center" style={{verticalAlign: 'top'}}>
                         <span className={`badge ${res.status==='confirmed'?'badge-green':res.status==='rejected'?'badge-red':'badge-yellow'}`}>
                           {res.status}
                         </span>
@@ -142,7 +161,7 @@ export default function OrderList() {
                 <div className="order-card" key={res.id}>
                   <div className="order-card-header">
                     <div>
-                      <div className="order-time">{res.time}</div>
+                      <div className="order-time" style={{color: '#047857'}}>{res.time}</div>
                       <div className="order-date">{res.date}</div>
                     </div>
                     <span className={`badge ${res.status==='confirmed'?'badge-green':res.status==='rejected'?'badge-red':'badge-yellow'}`}>
@@ -167,17 +186,36 @@ export default function OrderList() {
                     <div className="order-value">
                       <div className="order-items">
                         {sortItemsByCategory(res.items)?.map((i, x) => (
-                          <div key={x} className="order-item"><b>{i.qty}x</b> {i.name}</div>
+                          <div key={x} className="order-item" style={{marginBottom: '10px', background:'#f9f9f9', padding:'8px', borderRadius:'6px'}}>
+                              <div style={{fontWeight: 'bold'}}>
+                                  <span style={{color: '#047857'}}>{i.qty}x</span> {i.name}
+                              </div>
+                              
+                              {/* MENAMPILKAN DETAIL MENU YANG DIPILIH DI MOBILE */}
+                              {i.selections && (
+                                  <div style={{color: '#555', fontSize: '0.9em', marginTop: '2px'}}>
+                                      ↳ {i.selections}
+                                  </div>
+                              )}
+
+                              {/* MENAMPILKAN CATATAN PER PAKET DI MOBILE */}
+                              {i.note && (
+                                  <div style={{fontSize: '0.85em', color: '#d97706', fontStyle: 'italic', marginTop: '2px'}}>
+                                      📝 {i.note}
+                                  </div>
+                              )}
+                          </div>
                         ))}
                       </div>
+                      {/* CATATAN GLOBAL */}
                       {res.customerNotes && (
-                        <div className="badge badge-yellow order-notes">📝 {res.customerNotes}</div>
+                        <div className="badge badge-yellow order-notes" style={{display:'inline-block'}}>📝 {res.customerNotes}</div>
                       )}
                     </div>
                   </div>
 
                   <div className="order-card-footer">
-                    <div className="order-total">Rp {res.totalPrice?.toLocaleString()}</div>
+                    <div className="order-total" style={{color: '#047857'}}>Rp {res.totalPrice?.toLocaleString()}</div>
                   </div>
                 </div>
               ))}
