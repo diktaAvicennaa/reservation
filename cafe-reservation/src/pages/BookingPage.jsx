@@ -114,7 +114,7 @@ export default function BookingPage() {
         return `- 1x *${b.name}*\n  > Pilihan: ${b.selections}${note}`;
     }).join("\n\n");
 
-    const message = `Halo Cafe Tropis 🌵,\nSaya ingin reservasi:\n\n👤 *Nama:* ${customer.name}\n📅 *Jam:* ${time}, ${date}\n\n📦 *Order Paket:*\n${orderText}\n\n💰 *Total: Rp ${totalPrice.toLocaleString()}*`;
+    const message = `Halo Cafe Tropis 🌵,\nSaya ingin reservasi:\n\n *Nama:* ${customer.name}\n*Jam:* ${time}, ${date}\n\n *Order Paket:*\n${orderText}\n\n *Total: Rp ${totalPrice.toLocaleString()}*`;
     return `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
   };
 

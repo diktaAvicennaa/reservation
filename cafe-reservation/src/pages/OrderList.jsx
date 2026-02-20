@@ -223,7 +223,7 @@ export default function OrderList() {
 
             {reservations.length === 0 && <div className="empty-state">Belum ada pesanan masuk.</div>}
           </div>
-        )}
+        )}x
       </div>
     </div>
   );
