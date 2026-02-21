@@ -108,7 +108,7 @@ export default function BookingPage() {
   };
 
   const generateWaLink = () => {
-    const phoneNumber = "6287819502426"; 
+    const phoneNumber = "6288989719187"; 
     const orderText = bundles.map(b => {
         const note = b.note ? ` _(Catatan: ${b.note})_` : "";
         return `- 1x *${b.name}*\n  > Pilihan: ${b.selections}${note}`;
