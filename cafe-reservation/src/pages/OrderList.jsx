@@ -179,7 +179,10 @@ export default function OrderList() {
 
                   <div className="order-card-row">
                     <div className="order-label">Meja</div>
-                    <div className="order-value"><b>{res.tableNumber || '-'}</b></div>
+                    <div className="order-value">
+                      <b>{res.spotName || "Meja Standar"}</b>
+                      <div style={{fontSize: '0.85em', color: '#555'}}>{res.partySize} Orang</div>
+                    </div>
                   </div>
 
                   <div className="order-card-row">
@@ -224,7 +227,7 @@ export default function OrderList() {
 
             {reservations.length === 0 && <div className="empty-state">Belum ada pesanan masuk.</div>}
           </div>
-        )}x
+        )}
       </div>
     </div>
   );
