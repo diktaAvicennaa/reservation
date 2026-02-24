@@ -227,7 +227,7 @@ export default function BookingPage() {
                                 
                                 {isBooked && <div style={{position:'absolute', top:'10px', left:'10px', background:'#ef4444', color:'white', padding:'4px 8px', fontSize:'0.7em', borderRadius:'6px', fontWeight:'bold'}}>Terisi</div>}
                                 {!isBooked && !isClosedAtSelectedDate && notEnoughPax && <div style={{position:'absolute', top:'10px', left:'10px', background:'#f59e0b', color:'white', padding:'4px 8px', fontSize:'0.7em', borderRadius:'6px', fontWeight:'bold'}}>Kurang Orang</div>}
-                                {!isBooked && isClosedAtSelectedDate && <div style={{position:'absolute', top:'10px', left:'10px', background:'#6b7280', color:'white', padding:'4px 8px', fontSize:'0.7em', borderRadius:'6px', fontWeight:'bold'}}>Tutup Hari Ini</div>}
+                                {!isBooked && isClosedAtSelectedDate && <div style={{position:'absolute', top:'10px', left:'10px', background:'#6b7280', color:'white', padding:'4px 8px', fontSize:'0.7em', borderRadius:'6px', fontWeight:'bold'}}>Terisi</div>}
                                 {isSelected && <div style={{position:'absolute', top:'10px', right:'10px', background:'#047857', color:'white', padding:'4px 8px', fontSize:'0.7em', borderRadius:'6px', fontWeight:'bold'}}>✓ Dipilih</div>}
                             </div>
                         )
