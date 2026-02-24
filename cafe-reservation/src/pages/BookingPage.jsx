@@ -50,14 +50,6 @@ export default function BookingPage() {
     setTotalPrice(total);
   }, [bundles]);
 
-  useEffect(() => {
-    setBundles(prev => prev.map(bundle => ({
-      ...bundle,
-      qty: partySize,
-      subtotal: bundle.unitPrice * partySize
-    })));
-  }, [partySize]);
-
   const handleStep1Submit = async () => {
     if(!date || !time) return alert("Mohon isi tanggal & jam kedatangan dulu ya 🙏");
     if (new Date(`${date}T${time}`) < new Date()) return alert("Waktu sudah berlalu! Mohon pilih jadwal masa depan 😅");
@@ -98,8 +90,8 @@ export default function BookingPage() {
           id: `pkg-${Date.now()}`,
           name: selectedPkg.name,
           unitPrice: selectedPkg.price,
-          qty: partySize,
-          subtotal: selectedPkg.price * partySize,
+          qty: 1,
+          subtotal: selectedPkg.price,
           selections: selectionsText || "Tanpa pilihan khusus",
           note: ""
       }]);
@@ -120,6 +112,9 @@ export default function BookingPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (bundles.length !== partySize) {
+      return alert(`Jumlah paket harus sama dengan jumlah orang (${partySize} orang). Saat ini baru ${bundles.length} paket.`);
+    }
     setLoading(true);
 
     const orderItems = bundles.map(b => ({
@@ -271,7 +266,7 @@ export default function BookingPage() {
             {/* KERANJANG AKTIF */}
             {bundles.length > 0 && (
                  <div className="mt-8">
-                    <h3 style={{borderBottom: '1px solid #ddd', paddingBottom: '10px'}}>Keranjang Anda:</h3>
+                <h3 style={{borderBottom: '1px solid #ddd', paddingBottom: '10px'}}>Keranjang Anda ({bundles.length}/{partySize} paket):</h3>
                     {bundles.map((b, idx) => (
                         <div key={b.id} className="card" style={{padding:'15px', marginBottom:'10px', background: '#f4f7f6'}}>
                             <div className="flex justify-between items-start mb-2">
@@ -298,7 +293,11 @@ export default function BookingPage() {
                   <div style={{textAlign: 'right'}}>
                     <small style={{fontWeight: 'bold', color: '#666'}}>Total Estimasi</small>
                     <div className="text-lg text-primary" style={{fontWeight: '900', marginBottom: '5px'}}>Rp {totalPrice.toLocaleString()}</div>
-                    <button onClick={() => { if(bundles.length === 0) return alert("Pilih minimal 1 paket 🙏"); setStep(4); }} className="btn btn-primary">CHECKOUT ➔</button>
+                    <button onClick={() => {
+                      if (bundles.length === 0) return alert("Pilih minimal 1 paket 🙏");
+                      if (bundles.length !== partySize) return alert(`Jumlah paket harus pas ${partySize}. Saat ini ${bundles.length}.`);
+                      setStep(4);
+                    }} className="btn btn-primary">CHECKOUT ➔</button>
                   </div>
                </div>
             </div>
