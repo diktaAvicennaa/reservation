@@ -17,5 +17,10 @@ service cloud.firestore {
       allow read: if true; // PUBLIC - customer bisa lihat paket yang tersedia
       allow write: if request.auth != null; // Hanya admin bisa edit paket
     }
+
+    match /spots/{doc=**} {
+      allow read: if true; // PUBLIC - customer bisa lihat daftar tempat
+      allow write: if request.auth != null; // Hanya admin bisa kelola tempat
+    }
   }
 }

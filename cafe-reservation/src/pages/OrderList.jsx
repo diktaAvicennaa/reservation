@@ -117,7 +117,8 @@ export default function OrderList() {
                         <small>{res.customerPhone}</small>
                       </td>
                       <td className="table-center" style={{verticalAlign: 'top'}}>
-                        <b>{res.tableNumber || '-'}</b>
+                        <div style={{fontWeight: 'bold', color: '#047857'}}>{res.spotName || "Meja Standar"}</div>
+                        <div style={{fontSize: '0.85em', color: '#555'}}>{res.partySize} Orang</div>
                       </td>
                       <td style={{verticalAlign: 'top'}}>
                         {sortItemsByCategory(res.items)?.map((i,x)=>(

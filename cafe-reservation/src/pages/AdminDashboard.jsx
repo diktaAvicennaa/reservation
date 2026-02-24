@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { db, auth } from "../firebase";
-import { collection, getDocs, updateDoc, doc, deleteDoc, addDoc } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, deleteDoc, addDoc, deleteField } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 export default function AdminDashboard() {
@@ -8,7 +8,8 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("orders");
   const [reservations, setReservations] = useState([]);
   const [packages, setPackages] = useState([]);
-  const [products, setProducts] = useState([]); // Master Menu
+  const [products, setProducts] = useState([]);
+  const [spots, setSpots] = useState([]); 
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalType, setModalType] = useState(""); 
@@ -20,6 +21,7 @@ export default function AdminDashboard() {
     fetchReservations();
     fetchPackages();
     fetchProducts();
+    fetchSpots();
     return () => unsubscribe();
   }, []);
 
@@ -35,33 +37,46 @@ export default function AdminDashboard() {
     const s = await getDocs(collection(db, "products"));
     setProducts(s.docs.map(d => ({ id: d.id, ...d.data() })));
   };
+  const fetchSpots = async () => {
+    const s = await getDocs(collection(db, "spots"));
+    setSpots(s.docs.map(d => ({ id: d.id, ...d.data() })));
+  };
 
   const handleStatus = async (id, status) => { await updateDoc(doc(db, "reservations", id), { status }); fetchReservations(); };
   const handleDeleteReservation = async (id) => {
     if(!confirm("Yakin hapus riwayat pesanan ini?")) return;
     await deleteDoc(doc(db, "reservations", id)); fetchReservations();
   };
-  const handleUpdateMeja = async (id, val) => { if(val) await updateDoc(doc(db, "reservations", id), { tableNumber: val }); };
   
+  const handleUpdateSpot = async (id, spotId) => {
+    const spot = spots.find(s => s.id === spotId);
+    if (spot) {
+        await updateDoc(doc(db, "reservations", id), { spotId: spot.id, spotName: spot.name });
+        fetchReservations();
+    }
+  };
+
   const handleDeleteItem = async (type, id) => { 
       if(confirm(`Yakin hapus data ini?`)) { 
-          await deleteDoc(doc(db, type === 'package' ? "packages" : "products", id)); 
-          type === 'package' ? fetchPackages() : fetchProducts(); 
+          const col = type === 'package' ? "packages" : type === 'spot' ? "spots" : "products";
+          await deleteDoc(doc(db, col, id)); 
+          if(type === 'package') fetchPackages();
+          else if(type === 'spot') fetchSpots();
+          else fetchProducts(); 
       }
   };
 
   const handleOpenModal = (type, item = null) => {
     setModalType(type);
     setEditingItem(item);
+    
+    // HAPUS IMG DARI STATE PAKET
     if (type === 'package') {
-        setFormData(item ? { 
-            name: item.name, price: item.price, 
-            foodOptions: item.foodOptions || [], 
-            drinkOptions: item.drinkOptions || [], 
-            isAvailable: item.isAvailable 
-        } : { name: "", price: "", foodOptions: [], drinkOptions: [], isAvailable: true });
+        setFormData(item ? { name: item.name, price: item.price, description: item.description || "", foodOptions: item.foodOptions || [], drinkOptions: item.drinkOptions || [], isAvailable: item.isAvailable } : { name: "", price: "", description: "", foodOptions: [], drinkOptions: [], isAvailable: true });
+    } else if (type === 'spot') {
+        setFormData(item ? { name: item.name, min: item.min, img: item.img || "", isAvailable: item.isAvailable } : { name: "", min: 2, img: "", isAvailable: true });
     } else {
-        setFormData(item ? { name: item.name, price: item.price, category: item.category, isAvailable: item.isAvailable } : { name: "", price: "", category: "Food", isAvailable: true });
+        setFormData(item ? { name: item.name, price: item.price, category: item.category, img: item.img || "", isAvailable: item.isAvailable } : { name: "", price: "", category: "Food", img: "", isAvailable: true });
     }
     setIsModalOpen(true);
   };
@@ -76,23 +91,39 @@ export default function AdminDashboard() {
 
   const handleSaveItem = async (e) => {
     e.preventDefault();
-    const collectionName = modalType === 'package' ? "packages" : "products";
-    const payload = { name: formData.name, price: Number(formData.price), isAvailable: formData.isAvailable };
+    let collectionName = "products";
+    if (modalType === 'package') collectionName = "packages";
+    if (modalType === 'spot') collectionName = "spots";
+
+    let payload = { isAvailable: formData.isAvailable, name: formData.name };
     
-    if (modalType === 'package') {
-        payload.foodOptions = formData.foodOptions;
-        payload.drinkOptions = formData.drinkOptions;
+    if (modalType === 'spot') {
+        payload.min = Number(formData.min);
+        payload.img = formData.img; 
+    } else {
+        payload.price = Number(formData.price);
+        if (modalType === 'package') {
+            payload.description = formData.description;
+            // Hapus payload.img untuk paket
+            payload.foodOptions = formData.foodOptions;
+            payload.drinkOptions = formData.drinkOptions;
+        }
+        if (modalType === 'menu') {
+            payload.category = formData.category;
+            const isFoodMenu = formData.category === 'Food' || formData.category === 'Snack';
+            payload.img = isFoodMenu ? (formData.img || "") : deleteField();
+        }
     }
-    if (modalType === 'menu') payload.category = formData.category;
 
     if (editingItem) await updateDoc(doc(db, collectionName, editingItem.id), payload);
     else await addDoc(collection(db, collectionName), payload);
     
     setIsModalOpen(false); 
-    modalType === 'package' ? fetchPackages() : fetchProducts();
+    if (modalType === 'package') fetchPackages();
+    else if (modalType === 'spot') fetchSpots();
+    else fetchProducts();
   };
 
-  // Helper untuk menampilkan nama menu di kartu paket
   const getProductNames = (ids) => {
       if(!ids || ids.length === 0) return "-";
       return ids.map(id => products.find(p => p.id === id)?.name).filter(Boolean).join(", ");
@@ -107,11 +138,12 @@ export default function AdminDashboard() {
 
       <div className="container" style={{maxWidth:'1000px'}}>
         
-        {/* TABS */}
-        <div className="flex mb-4" style={{background: 'white', padding: '5px', borderRadius: '12px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)'}}>
-          <button onClick={() => setActiveTab('orders')} className={`btn ${activeTab === 'orders' ? 'btn-primary' : 'btn-ghost'}`} style={{flex:1}}>📋 Pesanan</button>
-          <button onClick={() => setActiveTab('packages')} className={`btn ${activeTab === 'packages' ? 'btn-primary' : 'btn-ghost'}`} style={{flex:1}}>📦 Kelola Paket</button>
-          <button onClick={() => setActiveTab('menu')} className={`btn ${activeTab === 'menu' ? 'btn-primary' : 'btn-ghost'}`} style={{flex:1}}>🍔 Menu Master</button>
+        {/* TABS MENU */}
+        <div className="flex mb-4" style={{background: 'white', padding: '5px', borderRadius: '12px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)', overflowX: 'auto'}}>
+          <button onClick={() => setActiveTab('orders')} className={`btn ${activeTab === 'orders' ? 'btn-primary' : 'btn-ghost'}`} style={{flex:1, whiteSpace:'nowrap'}}>📋 Pesanan</button>
+          <button onClick={() => setActiveTab('packages')} className={`btn ${activeTab === 'packages' ? 'btn-primary' : 'btn-ghost'}`} style={{flex:1, whiteSpace:'nowrap'}}>📦 Paket</button>
+          <button onClick={() => setActiveTab('spots')} className={`btn ${activeTab === 'spots' ? 'btn-primary' : 'btn-ghost'}`} style={{flex:1, whiteSpace:'nowrap'}}>📍 Tempat</button>
+          <button onClick={() => setActiveTab('menu')} className={`btn ${activeTab === 'menu' ? 'btn-primary' : 'btn-ghost'}`} style={{flex:1, whiteSpace:'nowrap'}}>🍔 Menu Master</button>
         </div>
 
         {/* TAB 1: ORDERS */}
@@ -119,7 +151,7 @@ export default function AdminDashboard() {
           <div className="card table-container">
             <table>
                 <thead>
-                  <tr><th>Waktu</th><th>Pelanggan</th><th>Meja</th><th>Pesanan (Paket)</th><th>Total</th><th>Aksi</th></tr>
+                  <tr><th>Waktu</th><th>Pelanggan</th><th>Tempat & Pax</th><th>Pesanan (Paket)</th><th>Total</th><th>Aksi</th></tr>
                 </thead>
                 <tbody>
                   {reservations.map((res) => (
@@ -131,13 +163,31 @@ export default function AdminDashboard() {
                             {res.status === 'confirmed' ? 'Diterima' : res.status === 'rejected' ? 'Ditolak' : 'Menunggu'}
                         </span>
                       </td>
-                      <td style={{verticalAlign: 'middle'}}><b>{res.customerName}</b><br/></td>
-                      <td style={{verticalAlign: 'middle'}}><input className="input" style={{width:'60px', padding:'8px', textAlign:'center', fontWeight:'bold'}} defaultValue={res.tableNumber} onBlur={(e)=>handleUpdateMeja(res.id, e.target.value)} /></td>
+                      <td style={{verticalAlign: 'middle'}}>
+                          <b>{res.customerName}</b><br/>
+                          <small style={{color: '#666'}}>{res.customerPhone}</small>
+                      </td>
+                      <td style={{verticalAlign: 'middle'}}>
+                          <select 
+                              className="select" 
+                              style={{padding: '6px', fontSize: '0.85em', fontWeight: 'bold', color: '#047857', border: '1px solid #047857', borderRadius: '6px', width: '100%', marginBottom: '5px'}}
+                              value={res.spotId || ""} 
+                              onChange={(e) => handleUpdateSpot(res.id, e.target.value)}
+                          >
+                              <option value="" disabled>-- Atur Tempat --</option>
+                              {spots.map(spot => (
+                                  <option key={spot.id} value={spot.id}>{spot.name}</option>
+                              ))}
+                          </select>
+                          <div style={{fontSize: '0.8em', color: '#666', textAlign: 'center'}}>
+                              {res.partySize ? `${res.partySize} Orang` : "Data Lama"}
+                          </div>
+                      </td>
                       <td style={{verticalAlign: 'middle'}}>
                           {res.items?.map((i,x)=>(
                               <div key={x} style={{fontSize:'0.9em', marginBottom:'8px', background:'#f9f9f9', padding:'5px', borderRadius:'4px'}}>
                                   <b style={{color: '#047857'}}>{i.qty}x</b> <b>{i.name}</b><br/>
-                                  <span style={{color: '#666'}}>↳ {i.selections}</span>
+                                  {i.selections && <span style={{color: '#666'}}>↳ {i.selections}</span>}
                                   {i.note && <div style={{fontSize: '0.85em', color: '#d97706', fontStyle: 'italic'}}>📝 {i.note}</div>}
                               </div>
                           ))}
@@ -160,29 +210,33 @@ export default function AdminDashboard() {
                   ))}
                 </tbody>
             </table>
-            {reservations.length===0 && <div className="text-center" style={{padding:'20px', color:'#999'}}>Belum ada pesanan masuk.</div>}
           </div>
         )}
 
-        {/* TAB 2: KELOLA PAKET */}
+        {/* TAB 2: KELOLA PAKET (TANPA GAMBAR) */}
         {activeTab === 'packages' && (
             <div>
                 <button onClick={()=>handleOpenModal('package')} className="btn btn-primary btn-block mb-4" style={{padding: '15px', fontSize: '1.1em'}}>+ BUAT PAKET BARU</button>
                 <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))', gap:'20px'}}>
                     {packages.map((p) => (
-                        <div key={p.id} className="card" style={{borderTop: '5px solid #047857'}}>
+                        <div key={p.id} className="card" style={{borderTop: '5px solid #047857', padding: '20px'}}>
+                            
                             <div>
                                 <h3 style={{margin:0, color: '#047857'}}>{p.name}</h3>
-                                <div className="flex mt-2 mb-2"><span className={`badge ${p.isAvailable ? 'badge-green' : 'badge-red'}`}>{p.isAvailable ? 'Tersedia' : 'Habis'}</span></div>
-                                <div style={{fontSize: '0.85em', color: '#555', background: '#f9f9f9', padding: '10px', borderRadius: '8px', marginBottom: '10px'}}>
+                                <div className="flex mt-2 mb-3"><span className={`badge ${p.isAvailable ? 'badge-green' : 'badge-red'}`}>{p.isAvailable ? 'Tersedia' : 'Habis'}</span></div>
+                                
+                                <div style={{fontSize: '0.85em', color: '#555', background: '#f9f9f9', padding: '10px', borderRadius: '8px', marginBottom: '15px'}}>
+                                    <b>Deskripsi:</b> {p.description}<br/><br/>
                                     <b>Opsi Makanan:</b> {getProductNames(p.foodOptions)}<br/>
                                     <b>Opsi Minuman:</b> {getProductNames(p.drinkOptions)}
                                 </div>
-                                <div className="text-primary font-bold" style={{fontSize: '1.2em'}}>Rp {p.price?.toLocaleString()}</div>
-                            </div>
-                            <div className="flex mt-4">
-                                <button onClick={()=>handleOpenModal('package', p)} className="btn btn-ghost" style={{flex:1, border: '1px solid #047857', color: '#047857'}}>Edit ✏️</button>
-                                <button onClick={()=>handleDeleteItem('package', p.id)} className="btn btn-danger" style={{flex:1}}>Hapus 🗑️</button>
+                                
+                                <div className="text-primary font-bold" style={{fontSize: '1.3em'}}>Rp {p.price?.toLocaleString()}</div>
+                                
+                                <div className="flex mt-4 gap-2">
+                                    <button onClick={()=>handleOpenModal('package', p)} className="btn btn-ghost" style={{flex:1, border: '1px solid #047857', color: '#047857'}}>Edit ✏️</button>
+                                    <button onClick={()=>handleDeleteItem('package', p.id)} className="btn btn-danger" style={{flex:1}}>Hapus 🗑️</button>
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -190,12 +244,41 @@ export default function AdminDashboard() {
             </div>
         )}
 
-        {/* TAB 3: MENU MASTER */}
+        {/* TAB 3: KELOLA TEMPAT (TETAP ADA GAMBAR) */}
+        {activeTab === 'spots' && (
+            <div>
+                <button onClick={()=>handleOpenModal('spot')} className="btn btn-primary btn-block mb-4" style={{padding: '15px', fontSize: '1.1em'}}>+ TAMBAH TEMPAT BARU</button>
+                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(250px, 1fr))', gap:'20px'}}>
+                    {spots.map((s) => (
+                        <div key={s.id} className="card" style={{borderTop: '5px solid #F59E0B'}}>
+                            {/* Menampilkan Gambar Tempat */}
+                            {s.img ? (
+                                <img src={s.img} alt={s.name} style={{width: '100%', height: '150px', objectFit: 'cover', borderRadius: '8px', marginBottom: '10px'}} />
+                            ) : (
+                                <div style={{width: '100%', height: '150px', background: '#eee', borderRadius: '8px', marginBottom: '10px', display:'flex', alignItems:'center', justifyContent:'center', color:'#999'}}>Tidak ada gambar</div>
+                            )}
+                            
+                            <div>
+                                <h3 style={{margin:0, color: '#333'}}>{s.name}</h3>
+                                <div className="flex mt-2 mb-2">
+                                    <span className={`badge ${s.isAvailable ? 'badge-green' : 'badge-red'}`}>{s.isAvailable ? 'Buka' : 'Tutup'}</span>
+                                    <span className="badge badge-yellow">Min. {s.min} Orang</span>
+                                </div>
+                            </div>
+                            <div className="flex mt-4">
+                                <button onClick={()=>handleOpenModal('spot', s)} className="btn btn-ghost" style={{flex:1}}>Edit</button>
+                                <button onClick={()=>handleDeleteItem('spot', s.id)} className="btn btn-danger" style={{flex:1}}>Hapus</button>
+                            </div>
+                        </div>
+                    ))}
+                    {spots.length === 0 && <div className="text-center" style={{padding:'20px', color:'#888', width: '100%'}}>Belum ada data tempat. Tambahkan minimal 1 agar pelanggan bisa memesan.</div>}
+                </div>
+            </div>
+        )}
+
+        {/* TAB 4: MENU MASTER */}
         {activeTab === 'menu' && (
             <div>
-                <div style={{background: '#fff3cd', color: '#856404', padding: '10px', borderRadius: '8px', marginBottom: '15px', fontSize: '0.9em'}}>
-                    ℹ️ <b>Info:</b> Ini adalah database master. Tambahkan menu di sini agar bisa dipilih saat meracik Paket.
-                </div>
                 <button onClick={()=>handleOpenModal('menu')} className="btn btn-secondary btn-block mb-4" style={{padding: '15px', fontSize: '1.1em'}}>+ TAMBAH MENU MASTER</button>
                 <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(250px, 1fr))', gap:'20px'}}>
                     {products.map((p) => (
@@ -219,53 +302,68 @@ export default function AdminDashboard() {
         )}
       </div>
 
-      {/* MODAL */}
+      {/* MODAL GLOBAL */}
       {isModalOpen && (
         <div className="modal-overlay">
             <div className="modal-content" style={{maxWidth: '500px', maxHeight:'90vh', overflowY:'auto'}}>
-                <h3 style={{color: '#047857'}}>{editingItem ? 'Edit Data' : (modalType === 'package' ? 'Buat Paket Baru' : 'Tambah Menu Master')}</h3>
+                <h3 style={{color: '#047857'}}>{editingItem ? 'Edit Data' : (modalType === 'package' ? 'Buat Paket Baru' : modalType === 'spot' ? 'Tambah Tempat' : 'Tambah Menu')}</h3>
                 <form onSubmit={handleSaveItem}>
-                    <div className="form-group"><label className="label">Nama {modalType === 'package' ? 'Paket' : 'Menu'}</label><input className="input" required value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} /></div>
-                    <div className="form-group"><label className="label">Harga</label><input type="number" className="input" required value={formData.price} onChange={e=>setFormData({...formData, price:e.target.value})} /></div>
+                    <div className="form-group"><label className="label">Nama {modalType === 'package' ? 'Paket' : modalType === 'spot' ? 'Tempat' : 'Menu'}</label><input className="input" required value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} /></div>
                     
-                    {/* INPUT CHECKLIST KHUSUS PAKET */}
+                    {/* INPUT HARGA (Hanya Menu & Paket) */}
+                    {modalType !== 'spot' && (
+                        <div className="form-group"><label className="label">Harga</label><input type="number" className="input" required value={formData.price} onChange={e=>setFormData({...formData, price:e.target.value})} /></div>
+                    )}
+
+                    {/* INPUT KHUSUS TEMPAT */}
+                    {modalType === 'spot' && (
+                        <>
+                            <div className="form-group"><label className="label">Minimal Orang (Pax)</label><input type="number" min="1" className="input" required value={formData.min} onChange={e=>setFormData({...formData, min:e.target.value})} /></div>
+                            <div className="form-group">
+                                <label className="label">Link URL Gambar Tempat</label>
+                                <input className="input" placeholder="https://..." value={formData.img || ""} onChange={e=>setFormData({...formData, img:e.target.value})} />
+                                <small style={{color:'#666'}}>*Copy paste link gambar dari Google/Unsplash</small>
+                            </div>
+                        </>
+                    )}
+                    
+                    {/* INPUT KHUSUS PAKET (TANPA GAMBAR) */}
                     {modalType === 'package' && (
                         <>
                             <div className="form-group">
-                                <label className="label">Pilih Opsi Makanan (Pelanggan boleh pilih apa saja?)</label>
+                                <label className="label">Isi Paket / Deskripsi</label>
+                                <textarea className="textarea" rows="2" value={formData.description} onChange={e=>setFormData({...formData, description:e.target.value})}></textarea>
+                            </div>
+                            <div className="form-group">
+                                <label className="label">Opsi Makanan (Pelanggan boleh pilih apa saja?)</label>
                                 <div style={{maxHeight:'150px', overflowY:'auto', border:'1px solid #ddd', padding:'10px', borderRadius:'8px'}}>
                                     {products.filter(p => p.category === 'Food' || p.category === 'Snack').map(p => (
-                                        <label key={p.id} style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'5px'}}>
-                                            <input type="checkbox" checked={formData.foodOptions?.includes(p.id)} onChange={(e) => handleOptionChange('foodOptions', p.id, e.target.checked)} />
-                                            {p.name}
-                                        </label>
+                                        <label key={p.id} style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'5px'}}><input type="checkbox" checked={formData.foodOptions?.includes(p.id)} onChange={(e) => handleOptionChange('foodOptions', p.id, e.target.checked)} />{p.name}</label>
                                     ))}
-                                    {products.filter(p => p.category === 'Food' || p.category === 'Snack').length === 0 && <small>Belum ada makanan di Menu Master.</small>}
                                 </div>
                             </div>
                             <div className="form-group">
-                                <label className="label">Pilih Opsi Minuman (Pelanggan boleh pilih apa saja?)</label>
+                                <label className="label">Opsi Minuman (Pelanggan boleh pilih apa saja?)</label>
                                 <div style={{maxHeight:'150px', overflowY:'auto', border:'1px solid #ddd', padding:'10px', borderRadius:'8px'}}>
                                     {products.filter(p => p.category === 'Coffee' || p.category === 'Non-Coffee').map(p => (
-                                        <label key={p.id} style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'5px'}}>
-                                            <input type="checkbox" checked={formData.drinkOptions?.includes(p.id)} onChange={(e) => handleOptionChange('drinkOptions', p.id, e.target.checked)} />
-                                            {p.name}
-                                        </label>
+                                        <label key={p.id} style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'5px'}}><input type="checkbox" checked={formData.drinkOptions?.includes(p.id)} onChange={(e) => handleOptionChange('drinkOptions', p.id, e.target.checked)} />{p.name}</label>
                                     ))}
-                                    {products.filter(p => p.category === 'Coffee' || p.category === 'Non-Coffee').length === 0 && <small>Belum ada minuman di Menu Master.</small>}
                                 </div>
                             </div>
                         </>
                     )}
 
-                    {/* INPUT KATEGORI KHUSUS MENU */}
                     {modalType === 'menu' && (
-                        <div className="form-group">
-                            <label className="label">Kategori</label>
-                            <select className="select" value={formData.category} onChange={e=>setFormData({...formData, category:e.target.value})}>
-                                <option>Coffee</option><option>Non-Coffee</option><option>Food</option><option>Snack</option>
-                            </select>
-                        </div>
+                        <>
+                            <div className="form-group"><label className="label">Kategori</label><select className="select" value={formData.category} onChange={e=>setFormData({...formData, category:e.target.value})}><option>Coffee</option><option>Non-Coffee</option><option>Food</option><option>Snack</option></select></div>
+                            {(formData.category === 'Food' || formData.category === 'Snack') && (
+                                <div className="form-group">
+                                    <label className="label">Link URL Foto Makanan</label>
+                                    <input className="input" placeholder="https://..." value={formData.img || ""} onChange={e=>setFormData({...formData, img:e.target.value})} />
+                                    <small style={{color:'#666'}}>Foto ini akan tampil saat pelanggan memilih isi paket.</small>
+                                </div>
+                            )}
+                        </>
                     )}
 
                     <div className="form-group flex" style={{background: '#f9f9f9', padding: '15px', borderRadius: '8px', border: '1px solid #eee'}}>

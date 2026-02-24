@@ -1,65 +1,89 @@
 import { useState, useEffect } from "react";
-import { db } from "../firebase";
+import { db, auth } from "../firebase";
 import { collection, query, where, getDocs, addDoc } from "firebase/firestore";
 
 export default function BookingPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  
+  // State Step 1 & 2: Waktu, Orang & Tempat
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [time, setTime] = useState(""); 
+  const [partySize, setPartySize] = useState(2);
+  const [selectedSpot, setSelectedSpot] = useState(null);
+  const [bookedSpots, setBookedSpots] = useState([]);
+  
   const [customer, setCustomer] = useState({ name: "", phone: "" }); 
   
+  // State Data Master dari Database
   const [packages, setPackages] = useState([]);
-  const [products, setProducts] = useState([]); // Butuh untuk membaca nama menu
-  const [bundles, setBundles] = useState([]); // Keranjang Paket
+  const [spots, setSpots] = useState([]); 
+  const [products, setProducts] = useState([]); 
+  
+  // State Keranjang Paket
+  const [bundles, setBundles] = useState([]); 
   const [totalPrice, setTotalPrice] = useState(0);
 
-  // State untuk Modal Pilihan Pelanggan
+  // State Modal Pilihan Isi Paket
   const [isPackageModalOpen, setIsPackageModalOpen] = useState(false);
   const [selectedPkg, setSelectedPkg] = useState(null);
   const [pkgSelection, setPkgSelection] = useState({ foodId: "", drinkId: "" });
 
+  // Ambil semua data Master dari Firestore
   useEffect(() => {
       const fetchData = async () => {
-          // Ambil Paket
           const pkgSnap = await getDocs(query(collection(db, "packages"), where("isAvailable", "==", true)));
           setPackages(pkgSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-          // Ambil Produk (Menu)
+          
           const prodSnap = await getDocs(query(collection(db, "products"), where("isAvailable", "==", true)));
           setProducts(prodSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+
+          const spotSnap = await getDocs(query(collection(db, "spots"), where("isAvailable", "==", true)));
+          setSpots(spotSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       };
       fetchData();
   }, []);
 
+  // Hitung Total Harga dari keranjang
   useEffect(() => {
     const total = bundles.reduce((sum, b) => sum + b.price, 0);
     setTotalPrice(total);
   }, [bundles]);
 
-  const handleStep1Submit = () => {
+  const handleStep1Submit = async () => {
     if(!date || !time) return alert("Mohon isi tanggal & jam kedatangan dulu ya 🙏");
     if (new Date(`${date}T${time}`) < new Date()) return alert("Waktu sudah berlalu! Mohon pilih jadwal masa depan 😅");
-    setStep(2);
+    
+    setLoading(true);
+    try {
+        const q = query(collection(db, "reservations"), where("date", "==", date));
+        const snap = await getDocs(q);
+        const booked = snap.docs.map(d => d.data()).filter(data => data.status !== 'rejected').map(data => data.spotId);
+            
+        setBookedSpots(booked);
+        setSelectedSpot(null);
+        setStep(2); 
+    } catch(e) {
+        alert("Gagal mengecek ketersediaan tempat.");
+    } finally {
+        setLoading(false);
+    }
   };
 
-  // Membuka Modal Pilihan Paket
   const openPackageSelection = (pkg) => {
       setSelectedPkg(pkg);
       setPkgSelection({ foodId: "", drinkId: "" });
       setIsPackageModalOpen(true);
   };
 
-  // Menyimpan Paket ke Keranjang
   const handleAddBundleToCart = () => {
       const needsFood = selectedPkg.foodOptions?.length > 0;
       const needsDrink = selectedPkg.drinkOptions?.length > 0;
-
       if (needsFood && !pkgSelection.foodId) return alert("Silakan pilih makanannya!");
       if (needsDrink && !pkgSelection.drinkId) return alert("Silakan pilih minumannya!");
-
+      
       const foodName = products.find(p => p.id === pkgSelection.foodId)?.name || "";
       const drinkName = products.find(p => p.id === pkgSelection.drinkId)?.name || "";
-      
       const selectionsText = [foodName, drinkName].filter(Boolean).join(" & ");
 
       setBundles([...bundles, {
@@ -69,7 +93,6 @@ export default function BookingPage() {
           selections: selectionsText || "Tanpa pilihan khusus",
           note: ""
       }]);
-      
       setIsPackageModalOpen(false);
   };
 
@@ -90,20 +113,16 @@ export default function BookingPage() {
     setLoading(true);
 
     const orderItems = bundles.map(b => ({
-        name: b.name, 
-        qty: 1, 
-        price: b.price, 
-        subtotal: b.price,
-        selections: b.selections, // Pilihan kombinasi
-        note: b.note || "" 
+        name: b.name, qty: 1, price: b.price, subtotal: b.price, selections: b.selections, note: b.note || "" 
     }));
 
     try {
       await addDoc(collection(db, "reservations"), {
-        date, time, customerName: customer.name, customerPhone: customer.phone,
+        date, time, partySize, spotId: selectedSpot.id, spotName: selectedSpot.name, 
+        customerName: customer.name, customerPhone: customer.phone,
         items: orderItems, totalPrice, status: "pending", createdAt: new Date()
       });
-      setStep(4); 
+      setStep(5); 
     } catch (error) { alert("Gagal menyimpan reservasi."); } finally { setLoading(false); }
   };
 
@@ -114,13 +133,16 @@ export default function BookingPage() {
         return `- 1x *${b.name}*\n  > Pilihan: ${b.selections}${note}`;
     }).join("\n\n");
 
-    const message = `Halo Cafe Tropis 🌵,\nSaya ingin reservasi:\n\n *Nama:* ${customer.name}\n*Jam:* ${time}, ${date}\n\n *Order Paket:*\n${orderText}\n\n *Total: Rp ${totalPrice.toLocaleString()}*`;
+    const message = `Halo Cafe Tropis 🌵,\nSaya ingin reservasi:\n\n *Nama:* ${customer.name}\n *Jadwal:* ${time}, ${date}\n *Orang:* ${partySize} Pax\n *Tempat:* ${selectedSpot.name}\n\n *Order Paket:*\n${orderText}\n\n *Total: Rp ${totalPrice.toLocaleString()}*`;
     return `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
   };
 
   return (
     <div style={{ paddingBottom: '120px' }}>
-      <div className="navbar"><div className="logo">🌵 Cafe Tropis</div>{step < 4 && <div className="badge badge-green">Langkah {step} / 3</div>}</div>
+      <div className="navbar">
+          <div className="logo">🌵 Cafe Tropis</div>
+          {step < 5 && <div className="badge badge-green">Langkah {step} / 4</div>}
+      </div>
 
       <div className="container">
         
@@ -129,30 +151,108 @@ export default function BookingPage() {
           <div className="text-center mt-4">
             <h2 className="text-lg">Kapan mau mampir?</h2>
             <div className="card text-left mt-4">
-              <div className="form-group"><label className="label"> Tanggal</label><input type="date" className="input" value={date} min={new Date().toISOString().split("T")[0]} onChange={(e) => setDate(e.target.value)} /></div>
+              <div className="form-group"><label className="label">Tanggal</label><input type="date" className="input" value={date} min={new Date().toISOString().split("T")[0]} onChange={(e) => setDate(e.target.value)} /></div>
               <div className="form-group"><label className="label"> Jam</label><input type="time" className="input" value={time} onChange={(e) => setTime(e.target.value)} /></div>
             </div>
             <button onClick={() => setTime("17:45")} className="btn btn-ghost btn-block mb-4" style={{border:'2px solid #047857', color:'#047857'}}>🌙 Shortcut Buka Puasa (17:45)</button>
-            <button onClick={handleStep1Submit} className="btn btn-primary btn-block" style={{padding: '15px', fontSize: '1.1em'}}>LANJUT PILIH PAKET ➔</button>
+            <button onClick={handleStep1Submit} disabled={loading} className="btn btn-primary btn-block" style={{padding: '15px', fontSize: '1.1em'}}>
+              {loading ? "Mengecek Ketersediaan..." : "LANJUT ➔"}
+            </button>
           </div>
         )}
 
-        {/* STEP 2: PILIH PAKET */}
+        {/* STEP 2: TEMPAT & PAX */}
         {step === 2 && (
           <div className="mt-4">
-            <h2 className="text-lg mb-4 text-primary">Pilih Paket Tersedia</h2>
+            <h2 className="text-lg mb-4 text-primary text-center">📍 Pilih Tempat Duduk</h2>
             
-            <div>
+            <div className="card mb-4" style={{background: '#f9f9f9', padding: '15px'}}>
+               <label className="label" style={{marginBottom: '5px'}}> Untuk Berapa Orang?</label>
+               <input type="number" min="1" className="input" value={partySize} 
+                 onChange={e => {
+                     setPartySize(Number(e.target.value));
+                     setSelectedSpot(null); 
+                 }} 
+               />
+               <small style={{color: '#666', marginTop: '5px', display: 'block'}}>Kapasitas meja akan menyesuaikan jumlah orang.</small>
+            </div>
+
+            {spots.length === 0 ? (
+                <div className="text-center card" style={{padding:'20px', color:'#999'}}>Belum ada tempat yang tersedia.</div>
+            ) : (
+                <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))', gap:'15px', marginBottom: '20px'}}>
+                    {spots.map(spot => {
+                        const isBooked = bookedSpots.includes(spot.id);
+                        const notEnoughPax = partySize < spot.min;
+                        const isDisabled = isBooked || notEnoughPax;
+                        const isSelected = selectedSpot?.id === spot.id;
+
+                        return (
+                            <div key={spot.id} 
+                                onClick={() => !isDisabled && setSelectedSpot(spot)}
+                                style={{
+                                    border: isSelected ? '3px solid #047857' : '1px solid #ddd',
+                                    borderRadius: '12px',
+                                    overflow: 'hidden',
+                                    opacity: isDisabled ? 0.5 : 1,
+                                    cursor: isDisabled ? 'not-allowed' : 'pointer',
+                                    position: 'relative',
+                                    background: 'white',
+                                    boxShadow: isSelected ? '0 4px 10px rgba(4, 120, 87, 0.3)' : '0 2px 5px rgba(0,0,0,0.05)',
+                                    transition: '0.2s'
+                                }}>
+                                {spot.img ? (
+                                  <img src={spot.img} alt={spot.name} style={{width:'100%', aspectRatio:'1 / 1', objectFit:'cover', display:'block'}} />
+                                ) : (
+                                  <div style={{width:'100%', aspectRatio:'1 / 1', background:'#eee', display:'flex', alignItems:'center', justifyContent:'center'}}>No Image</div>
+                                )}
+                                <div style={{padding:'10px', textAlign:'center'}}>
+                                    <b style={{display:'block', fontSize: '0.9em', color: '#333'}}>{spot.name}</b>
+                                    <span style={{fontSize: '0.75em', color: '#666'}}>Min. {spot.min} Orang</span>
+                                </div>
+                                
+                                {isBooked && <div style={{position:'absolute', top:'10px', left:'10px', background:'#ef4444', color:'white', padding:'4px 8px', fontSize:'0.7em', borderRadius:'6px', fontWeight:'bold'}}>Terisi</div>}
+                                {!isBooked && notEnoughPax && <div style={{position:'absolute', top:'10px', left:'10px', background:'#f59e0b', color:'white', padding:'4px 8px', fontSize:'0.7em', borderRadius:'6px', fontWeight:'bold'}}>Kurang Orang</div>}
+                                {isSelected && <div style={{position:'absolute', top:'10px', right:'10px', background:'#047857', color:'white', padding:'4px 8px', fontSize:'0.7em', borderRadius:'6px', fontWeight:'bold'}}>✓ Dipilih</div>}
+                            </div>
+                        )
+                    })}
+                </div>
+            )}
+
+            <div className="flex mt-4 gap-2">
+                <button onClick={() => setStep(1)} className="btn btn-ghost" style={{flex:1}}>Kembali</button>
+                <button onClick={() => {
+                    if(!selectedSpot) return alert("Silakan pilih tempat duduk yang tersedia terlebih dahulu!");
+                    setStep(3);
+                }} className="btn btn-primary" style={{flex:2}}>LANJUT PILIH PAKET ➔</button>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 3: PILIH PAKET (TANPA GAMBAR) */}
+        {step === 3 && (
+          <div className="mt-4">
+            <h2 className="text-lg mb-4 text-primary"> Pilih Paket Tersedia</h2>
+            
+            <div style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
               {packages.length === 0 ? (
                 <div className="text-center card" style={{padding:'40px', color:'#999'}}>Belum ada paket.</div>
               ) : (
                 packages.map((pkg) => (
-                  <div key={pkg.id} className="card" style={{padding:'20px', borderTop: '5px solid #047857', marginBottom: '20px'}}>
+                  <div key={pkg.id} className="card" style={{padding: '20px', overflow: 'hidden', border: '1px solid #eee', borderTop: '5px solid #047857', boxShadow: '0 4px 12px rgba(0,0,0,0.05)'}}>
+                    
+                    {/* INFO PAKET (Hanya Teks) */}
                     <div style={{marginBottom: '15px'}}>
-                       <h3 style={{margin: '0 0 5px 0', color: '#047857'}}>{pkg.name}</h3>
-                       <div className="text-primary font-bold" style={{fontSize: '1.2em'}}>Rp {pkg.price.toLocaleString()}</div>
+                       <h3 style={{margin: '0 0 5px 0', color: '#047857', fontSize: '1.3em'}}>{pkg.name}</h3>
+                       {pkg.description && <p style={{color: '#666', fontSize: '0.9em', margin: '5px 0 10px 0'}}>{pkg.description}</p>}
+                       <div className="text-primary font-bold" style={{fontSize: '1.2em'}}>
+                           Rp {pkg.price.toLocaleString()}
+                       </div>
                     </div>
-                    <button onClick={() => openPackageSelection(pkg)} className="btn btn-primary btn-block">+ Tambah Paket Ini</button>
+                    <button onClick={() => openPackageSelection(pkg)} className="btn btn-primary btn-block" style={{padding: '12px', fontSize: '1.05em', borderRadius: '8px'}}>
+                        + Pilih Paket Ini
+                    </button>
                   </div>
                 ))
               )}
@@ -184,11 +284,12 @@ export default function BookingPage() {
             {/* FOOTER KERANJANG */}
             <div style={{ position:'fixed', bottom:0, left:0, right:0, padding:'20px', background:'white', borderTop:'1px solid #eee', boxShadow:'0 -5px 15px rgba(0,0,0,0.05)', zIndex: 100 }}>
                <div className="container flex justify-between align-center" style={{padding: 0}}>
-                  <div>
+                  <button onClick={() => setStep(2)} className="btn btn-ghost" style={{padding: '12px 15px'}}>← Tempat</button>
+                  <div style={{textAlign: 'right'}}>
                     <small style={{fontWeight: 'bold', color: '#666'}}>Total Estimasi</small>
-                    <div className="text-lg text-primary" style={{fontWeight: '900'}}>Rp {totalPrice.toLocaleString()}</div>
+                    <div className="text-lg text-primary" style={{fontWeight: '900', marginBottom: '5px'}}>Rp {totalPrice.toLocaleString()}</div>
+                    <button onClick={() => { if(bundles.length === 0) return alert("Pilih minimal 1 paket 🙏"); setStep(4); }} className="btn btn-primary">CHECKOUT ➔</button>
                   </div>
-                  <button onClick={() => { if(bundles.length === 0) return alert("Pilih minimal 1 paket 🙏"); setStep(3); }} className="btn btn-primary" style={{padding: '12px 25px', fontSize: '1.1em'}}>CHECKOUT ➔</button>
                </div>
             </div>
           </div>
@@ -200,21 +301,42 @@ export default function BookingPage() {
                 <div className="modal-content">
                     <h3 style={{color: '#047857', borderBottom: '1px solid #eee', paddingBottom: '10px'}}>Racik {selectedPkg.name}</h3>
                     
-                    {/* JIKA PAKET PUNYA OPSI MAKANAN */}
                     {selectedPkg.foodOptions && selectedPkg.foodOptions.length > 0 && (
                         <div className="form-group mt-4">
                             <label className="label">Pilih Makanan:</label>
-                            <select className="select" value={pkgSelection.foodId} onChange={e => setPkgSelection({...pkgSelection, foodId: e.target.value})}>
-                                <option value="">-- Pilih Makanan --</option>
-                                {selectedPkg.foodOptions.map(id => {
-                                    const p = products.find(prod => prod.id === id);
-                                    return p ? <option key={id} value={id}>{p.name}</option> : null;
-                                })}
-                            </select>
+                        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'10px'}}>
+                          {selectedPkg.foodOptions.map(id => {
+                            const p = products.find(prod => prod.id === id);
+                            if (!p) return null;
+                            const isSelectedFood = pkgSelection.foodId === id;
+                            return (
+                              <button
+                                key={id}
+                                type="button"
+                                onClick={() => setPkgSelection({...pkgSelection, foodId: id})}
+                                style={{
+                                  border: isSelectedFood ? '2px solid #047857' : '1px solid #ddd',
+                                  borderRadius: '10px',
+                                  padding: 0,
+                                  overflow: 'hidden',
+                                  background: '#fff',
+                                  cursor: 'pointer',
+                                  textAlign: 'left'
+                                }}
+                              >
+                                {p.img ? (
+                                  <img src={p.img} alt={p.name} style={{width:'100%', aspectRatio:'1 / 1', objectFit:'cover', display:'block'}} />
+                                ) : (
+                                  <div style={{width:'100%', aspectRatio:'1 / 1', background:'#eee', display:'flex', alignItems:'center', justifyContent:'center', color:'#888', fontSize:'0.8em'}}>No Image</div>
+                                )}
+                                <div style={{padding:'8px', fontSize:'0.85em', fontWeight:isSelectedFood ? 'bold' : 'normal', color:'#333'}}>{p.name}</div>
+                              </button>
+                            );
+                          })}
+                        </div>
                         </div>
                     )}
 
-                    {/* JIKA PAKET PUNYA OPSI MINUMAN */}
                     {selectedPkg.drinkOptions && selectedPkg.drinkOptions.length > 0 && (
                         <div className="form-group mt-4">
                             <label className="label">Pilih Minuman:</label>
@@ -230,16 +352,26 @@ export default function BookingPage() {
 
                     <div className="flex mt-4 pt-4" style={{borderTop: '1px solid #eee'}}>
                         <button onClick={() => setIsPackageModalOpen(false)} className="btn btn-ghost" style={{flex:1}}>Batal</button>
-                        <button onClick={handleAddBundleToCart} className="btn btn-primary" style={{flex:2}}>MASUKKAN KERANJANG</button>
+                        <button onClick={handleAddBundleToCart} className="btn btn-primary" style={{flex:2}}>SIMPAN</button>
                     </div>
                 </div>
             </div>
         )}
 
-        {/* STEP 3 & 4 (KONFIRMASI & SUKSES) */}
-        {step === 3 && (
+        {/* STEP 4: KONFIRMASI */}
+        {step === 4 && (
           <form onSubmit={handleSubmit} className="mt-4">
             <h2 className="text-center text-primary mb-4">📝 Konfirmasi Pesanan</h2>
+            
+            <div className="card mb-4" style={{background:'#f4f7f6', border:'1px solid #047857'}}>
+                <h3 style={{marginTop:0, fontSize:'1rem'}}>Info Tempat</h3>
+                <div style={{fontSize: '0.9em'}}>
+                     {date} |  {time} <br/>
+                     {partySize} Orang <br/>
+                     <b>{selectedSpot.name}</b>
+                </div>
+            </div>
+
             <div className="card mb-4" style={{background:'#f8fafc', border:'1px solid #e2e8f0'}}>
                 <h3 style={{marginTop:0, fontSize:'1rem', borderBottom:'1px solid #ddd', paddingBottom:'10px', marginBottom:'10px'}}>Cek Pesananmu:</h3>
                 <div style={{maxHeight:'250px', overflowY:'auto'}}>
@@ -255,21 +387,24 @@ export default function BookingPage() {
                     ))}
                 </div>
             </div>
+
             <div className="card">
                 <div className="flex justify-between mb-4" style={{borderBottom:'1px solid #eee', paddingBottom:'10px'}}><span style={{fontWeight: 'bold', color: '#666'}}>Total Tagihan</span><b className="text-primary" style={{fontSize:'1.3em'}}>Rp {totalPrice.toLocaleString()}</b></div>
-                <div className="form-group"><label className="label"> Nama Lengkap</label><input required className="input" placeholder="Contoh: Budi" onChange={(e) => setCustomer({...customer, name: e.target.value})} /></div>
-                {/* <div className="form-group"><label className="label">📱 Nomor WhatsApp</label><input required type="tel" className="input" placeholder="08..." onChange={(e) => setCustomer({...customer, phone: e.target.value})} /></div> */}
+                <div className="form-group"><label className="label">Nama Lengkap</label><input required className="input" placeholder="Contoh: Budi" onChange={(e) => setCustomer({...customer, name: e.target.value})} /></div>
+                {/* <div className="form-group"><label className="label"> Nomor WhatsApp</label><input required type="tel" className="input" placeholder="08..." onChange={(e) => setCustomer({...customer, phone: e.target.value})} /></div> */}
             </div>
             <div className="flex mt-4 gap-2">
-                <button type="button" onClick={() => setStep(2)} className="btn btn-ghost" style={{flex:1, border: '1px solid #ddd'}}>← Ubah Pesanan</button>
+                <button type="button" onClick={() => setStep(3)} className="btn btn-ghost" style={{flex:1, border: '1px solid #ddd'}}>← Ubah</button>
                 <button type="submit" disabled={loading} className="btn btn-primary" style={{flex:2}}>{loading ? "Proses..." : "KIRIM PESANAN ✅"}</button>
             </div>
           </form>
         )}
-        {step === 4 && (
+
+        {/* STEP 5: SUKSES */}
+        {step === 5 && (
           <div className="text-center mt-8">
             <h2 className="text-primary" style={{fontSize:'2.2em', margin: '0 0 10px 0'}}>Siap Dipesan! 🚀</h2>
-            <p className="mb-4" style={{color: '#666'}}>Satu langkah lagi! Kirim rincian pesanan paket ini ke WhatsApp Admin.</p>
+            <p className="mb-4" style={{color: '#666'}}>Satu langkah lagi! Kirim rincian pesanan paket ini ke WhatsApp Admin untuk diproses.</p>
             <a href={generateWaLink()} target="_blank" rel="noreferrer" className="btn btn-secondary btn-block shadow" style={{padding:'20px', fontSize:'1.2em', display: 'flex', gap: '10px'}}><span style={{fontSize: '1.5em'}}></span> KIRIM KE WHATSAPP</a>
             <button onClick={() => window.location.reload()} className="btn btn-ghost mt-6" style={{color: '#888'}}>↻ Buat Pesanan Baru</button>
           </div>
