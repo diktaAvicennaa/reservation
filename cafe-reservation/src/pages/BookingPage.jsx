@@ -46,9 +46,17 @@ export default function BookingPage() {
 
   // Hitung Total Harga dari keranjang
   useEffect(() => {
-    const total = bundles.reduce((sum, b) => sum + b.price, 0);
+    const total = bundles.reduce((sum, b) => sum + b.subtotal, 0);
     setTotalPrice(total);
   }, [bundles]);
+
+  useEffect(() => {
+    setBundles(prev => prev.map(bundle => ({
+      ...bundle,
+      qty: partySize,
+      subtotal: bundle.unitPrice * partySize
+    })));
+  }, [partySize]);
 
   const handleStep1Submit = async () => {
     if(!date || !time) return alert("Mohon isi tanggal & jam kedatangan dulu ya 🙏");
@@ -89,7 +97,9 @@ export default function BookingPage() {
       setBundles([...bundles, {
           id: `pkg-${Date.now()}`,
           name: selectedPkg.name,
-          price: selectedPkg.price,
+          unitPrice: selectedPkg.price,
+          qty: partySize,
+          subtotal: selectedPkg.price * partySize,
           selections: selectionsText || "Tanpa pilihan khusus",
           note: ""
       }]);
@@ -113,7 +123,7 @@ export default function BookingPage() {
     setLoading(true);
 
     const orderItems = bundles.map(b => ({
-        name: b.name, qty: 1, price: b.price, subtotal: b.price, selections: b.selections, note: b.note || "" 
+      name: b.name, qty: b.qty, price: b.unitPrice, subtotal: b.subtotal, selections: b.selections, note: b.note || "" 
     }));
 
     try {
@@ -130,7 +140,7 @@ export default function BookingPage() {
     const phoneNumber = "6288989719187"; 
     const orderText = bundles.map(b => {
         const note = b.note ? ` _(Catatan: ${b.note})_` : "";
-        return `- 1x *${b.name}*\n  > Pilihan: ${b.selections}${note}`;
+      return `- ${b.qty}x *${b.name}*\n  > Pilihan: ${b.selections}\n  > Subtotal: Rp ${b.subtotal.toLocaleString()}${note}`;
     }).join("\n\n");
 
     const message = `Halo Cafe Tropis 🌵,\nSaya ingin reservasi:\n\n *Nama:* ${customer.name}\n *Jadwal:* ${time}, ${date}\n *Orang:* ${partySize} Pax\n *Tempat:* ${selectedSpot.name}\n\n *Order Paket:*\n${orderText}\n\n *Total: Rp ${totalPrice.toLocaleString()}*`;
@@ -170,7 +180,7 @@ export default function BookingPage() {
                <label className="label" style={{marginBottom: '5px'}}> Untuk Berapa Orang?</label>
                <input type="number" min="1" className="input" value={partySize} 
                  onChange={e => {
-                     setPartySize(Number(e.target.value));
+                     setPartySize(Math.max(1, Number(e.target.value) || 1));
                      setSelectedSpot(null); 
                  }} 
                />
@@ -266,11 +276,11 @@ export default function BookingPage() {
                         <div key={b.id} className="card" style={{padding:'15px', marginBottom:'10px', background: '#f4f7f6'}}>
                             <div className="flex justify-between items-start mb-2">
                                 <div>
-                                    <b style={{color: '#047857'}}>{b.name}</b>
+                                  <b style={{color: '#047857'}}>{b.qty}x {b.name}</b>
                                     <div style={{fontSize:'0.85em', color:'#555', marginTop:'2px'}}>Pilihan: <b>{b.selections}</b></div>
                                 </div>
                                 <div className="flex" style={{flexDirection: 'column', alignItems:'flex-end'}}>
-                                    <b>Rp {b.price.toLocaleString()}</b>
+                                  <b>Rp {b.subtotal.toLocaleString()}</b>
                                     <button onClick={() => removeBundle(idx)} className="btn btn-danger" style={{padding:'4px 10px', marginTop:'5px', fontSize:'0.75em'}}>Hapus ✕</button>
                                 </div>
                             </div>
@@ -298,13 +308,13 @@ export default function BookingPage() {
         {/* MODAL PELANGGAN MEMILIH ISI PAKET */}
         {isPackageModalOpen && selectedPkg && (
             <div className="modal-overlay">
-                <div className="modal-content">
+                <div className="modal-content" style={{maxWidth: '520px', width: '100%', maxHeight: '85vh', overflowY: 'auto', padding: '20px'}}>
                     <h3 style={{color: '#047857', borderBottom: '1px solid #eee', paddingBottom: '10px'}}>Racik {selectedPkg.name}</h3>
                     
                     {selectedPkg.foodOptions && selectedPkg.foodOptions.length > 0 && (
                         <div className="form-group mt-4">
                             <label className="label">Pilih Makanan:</label>
-                        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:'10px'}}>
+                        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(120px, 1fr))', gap:'10px'}}>
                           {selectedPkg.foodOptions.map(id => {
                             const p = products.find(prod => prod.id === id);
                             if (!p) return null;
@@ -350,7 +360,7 @@ export default function BookingPage() {
                         </div>
                     )}
 
-                    <div className="flex mt-4 pt-4" style={{borderTop: '1px solid #eee'}}>
+                    <div className="flex mt-4 pt-4" style={{borderTop: '1px solid #eee', position: 'sticky', bottom: 0, background: '#fff'}}>
                         <button onClick={() => setIsPackageModalOpen(false)} className="btn btn-ghost" style={{flex:1}}>Batal</button>
                         <button onClick={handleAddBundleToCart} className="btn btn-primary" style={{flex:2}}>SIMPAN</button>
                     </div>
@@ -378,11 +388,11 @@ export default function BookingPage() {
                     {bundles.map((b, i) => (
                         <div key={i} style={{display:'flex', justifyContent:'space-between', marginBottom:'12px', fontSize:'0.95em', borderBottom:'1px dashed #ccc', paddingBottom:'8px'}}>
                             <div style={{flex:1, paddingRight: '10px'}}>
-                                <div style={{fontWeight:'bold', color: '#047857'}}>1x {b.name}</div>
+                                <div style={{fontWeight:'bold', color: '#047857'}}>{b.qty}x {b.name}</div>
                                 <div style={{fontSize:'0.85em', color:'#666', marginTop: '2px'}}>Pilihan: {b.selections}</div>
                                 {b.note && <div style={{fontSize:'0.85em', color:'#d97706', fontStyle:'italic', marginTop: '4px'}}>📝 {b.note}</div>}
                             </div>
-                            <div style={{fontWeight:'bold'}}>Rp {b.price.toLocaleString()}</div>
+                              <div style={{fontWeight:'bold'}}>Rp {b.subtotal.toLocaleString()}</div>
                         </div>
                     ))}
                 </div>
