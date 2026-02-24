@@ -56,7 +56,11 @@ export default function BookingPage() {
     
     setLoading(true);
     try {
-        const q = query(collection(db, "reservations"), where("date", "==", date));
+        const q = query(
+          collection(db, "reservations"),
+          where("date", "==", date),
+          where("time", "==", time)
+        );
         const snap = await getDocs(q);
         const booked = snap.docs.map(d => d.data()).filter(data => data.status !== 'rejected').map(data => data.spotId);
             
@@ -175,9 +179,17 @@ export default function BookingPage() {
                <label className="label" style={{marginBottom: '5px'}}> Untuk Berapa Orang?</label>
                <input type="number" min="1" className="input" value={partySize} 
                  onChange={e => {
-                     setPartySize(Math.max(1, Number(e.target.value) || 1));
+                   const value = e.target.value;
+                   if (value === "") {
+                     setPartySize("");
+                   } else {
+                     setPartySize(Math.max(1, Number(value)));
+                   }
                      setSelectedSpot(null); 
-                 }} 
+                 }}
+                 onBlur={() => {
+                     if (!partySize || partySize < 1) setPartySize(1);
+                 }}
                />
                <small style={{color: '#666', marginTop: '5px', display: 'block'}}>Kapasitas meja akan menyesuaikan jumlah orang.</small>
             </div>
@@ -189,7 +201,8 @@ export default function BookingPage() {
                     {spots.map(spot => {
                         const isBooked = bookedSpots.includes(spot.id);
                         const notEnoughPax = partySize < spot.min;
-                        const isDisabled = isBooked || notEnoughPax;
+                      const isClosedAtSelectedDate = Array.isArray(spot.unavailableDates) && spot.unavailableDates.includes(date);
+                      const isDisabled = isBooked || notEnoughPax || isClosedAtSelectedDate;
                         const isSelected = selectedSpot?.id === spot.id;
 
                         return (
@@ -217,7 +230,8 @@ export default function BookingPage() {
                                 </div>
                                 
                                 {isBooked && <div style={{position:'absolute', top:'10px', left:'10px', background:'#ef4444', color:'white', padding:'4px 8px', fontSize:'0.7em', borderRadius:'6px', fontWeight:'bold'}}>Terisi</div>}
-                                {!isBooked && notEnoughPax && <div style={{position:'absolute', top:'10px', left:'10px', background:'#f59e0b', color:'white', padding:'4px 8px', fontSize:'0.7em', borderRadius:'6px', fontWeight:'bold'}}>Kurang Orang</div>}
+                                {!isBooked && !isClosedAtSelectedDate && notEnoughPax && <div style={{position:'absolute', top:'10px', left:'10px', background:'#f59e0b', color:'white', padding:'4px 8px', fontSize:'0.7em', borderRadius:'6px', fontWeight:'bold'}}>Kurang Orang</div>}
+                                {!isBooked && isClosedAtSelectedDate && <div style={{position:'absolute', top:'10px', left:'10px', background:'#6b7280', color:'white', padding:'4px 8px', fontSize:'0.7em', borderRadius:'6px', fontWeight:'bold'}}>Tutup Hari Ini</div>}
                                 {isSelected && <div style={{position:'absolute', top:'10px', right:'10px', background:'#047857', color:'white', padding:'4px 8px', fontSize:'0.7em', borderRadius:'6px', fontWeight:'bold'}}>✓ Dipilih</div>}
                             </div>
                         )
@@ -228,6 +242,7 @@ export default function BookingPage() {
             <div className="flex mt-4 gap-2">
                 <button onClick={() => setStep(1)} className="btn btn-ghost" style={{flex:1}}>Kembali</button>
                 <button onClick={() => {
+                  if (!partySize || partySize < 1) return alert("Jumlah orang minimal 1 ya.");
                     if(!selectedSpot) return alert("Silakan pilih tempat duduk yang tersedia terlebih dahulu!");
                     setStep(3);
                 }} className="btn btn-primary" style={{flex:2}}>LANJUT PILIH PAKET ➔</button>
@@ -271,7 +286,7 @@ export default function BookingPage() {
                         <div key={b.id} className="card" style={{padding:'15px', marginBottom:'10px', background: '#f4f7f6'}}>
                             <div className="flex justify-between items-start mb-2">
                                 <div>
-                                  <b style={{color: '#047857'}}>{b.qty}x {b.name}</b>
+                                  <b style={{color: '#047857'}}>{b.name}</b>
                                     <div style={{fontSize:'0.85em', color:'#555', marginTop:'2px'}}>Pilihan: <b>{b.selections}</b></div>
                                 </div>
                                 <div className="flex" style={{flexDirection: 'column', alignItems:'flex-end'}}>
@@ -387,7 +402,7 @@ export default function BookingPage() {
                     {bundles.map((b, i) => (
                         <div key={i} style={{display:'flex', justifyContent:'space-between', marginBottom:'12px', fontSize:'0.95em', borderBottom:'1px dashed #ccc', paddingBottom:'8px'}}>
                             <div style={{flex:1, paddingRight: '10px'}}>
-                                <div style={{fontWeight:'bold', color: '#047857'}}>{b.qty}x {b.name}</div>
+                                <div style={{fontWeight:'bold', color: '#047857'}}>{b.name}</div>
                                 <div style={{fontSize:'0.85em', color:'#666', marginTop: '2px'}}>Pilihan: {b.selections}</div>
                                 {b.note && <div style={{fontSize:'0.85em', color:'#d97706', fontStyle:'italic', marginTop: '4px'}}>📝 {b.note}</div>}
                             </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { db, auth } from "../firebase";
-import { collection, getDocs, updateDoc, doc, deleteDoc, addDoc, deleteField } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, deleteDoc, addDoc, deleteField, query, where } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 export default function AdminDashboard() {
@@ -51,6 +51,30 @@ export default function AdminDashboard() {
   const handleUpdateSpot = async (id, spotId) => {
     const spot = spots.find(s => s.id === spotId);
     if (spot) {
+        const currentReservation = reservations.find(r => r.id === id);
+        if (!currentReservation?.date || !currentReservation?.time) {
+            await updateDoc(doc(db, "reservations", id), { spotId: spot.id, spotName: spot.name });
+            fetchReservations();
+            return;
+        }
+
+        const conflictQuery = query(
+            collection(db, "reservations"),
+            where("date", "==", currentReservation.date),
+            where("time", "==", currentReservation.time),
+            where("spotId", "==", spot.id)
+        );
+        const conflictSnap = await getDocs(conflictQuery);
+        const hasConflict = conflictSnap.docs.some(d => {
+            const data = d.data();
+            return d.id !== id && data.status !== 'rejected';
+        });
+
+        if (hasConflict) {
+            alert(`Tempat ${spot.name} sudah terpakai di ${currentReservation.date} jam ${currentReservation.time}.`);
+            return;
+        }
+
         await updateDoc(doc(db, "reservations", id), { spotId: spot.id, spotName: spot.name });
         fetchReservations();
     }
@@ -74,7 +98,7 @@ export default function AdminDashboard() {
     if (type === 'package') {
         setFormData(item ? { name: item.name, price: item.price, description: item.description || "", foodOptions: item.foodOptions || [], drinkOptions: item.drinkOptions || [], isAvailable: item.isAvailable } : { name: "", price: "", description: "", foodOptions: [], drinkOptions: [], isAvailable: true });
     } else if (type === 'spot') {
-        setFormData(item ? { name: item.name, min: item.min, img: item.img || "", isAvailable: item.isAvailable } : { name: "", min: 2, img: "", isAvailable: true });
+        setFormData(item ? { name: item.name, min: item.min, img: item.img || "", unavailableDates: (item.unavailableDates || []).join(", "), isAvailable: item.isAvailable } : { name: "", min: 2, img: "", unavailableDates: "", isAvailable: true });
     } else {
         setFormData(item ? { name: item.name, price: item.price, category: item.category, img: item.img || "", isAvailable: item.isAvailable } : { name: "", price: "", category: "Food", img: "", isAvailable: true });
     }
@@ -100,6 +124,10 @@ export default function AdminDashboard() {
     if (modalType === 'spot') {
         payload.min = Number(formData.min);
         payload.img = formData.img; 
+        payload.unavailableDates = (formData.unavailableDates || "")
+            .split(",")
+            .map(d => d.trim())
+            .filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d));
     } else {
         payload.price = Number(formData.price);
         if (modalType === 'package') {
@@ -323,6 +351,11 @@ export default function AdminDashboard() {
                                 <label className="label">Link URL Gambar Tempat</label>
                                 <input className="input" placeholder="https://..." value={formData.img || ""} onChange={e=>setFormData({...formData, img:e.target.value})} />
                                 <small style={{color:'#666'}}>*Copy paste link gambar dari Google/Unsplash</small>
+                            </div>
+                            <div className="form-group">
+                                <label className="label">Tanggal Tidak Tersedia</label>
+                                <input className="input" placeholder="Contoh: 2026-03-01, 2026-03-02" value={formData.unavailableDates || ""} onChange={e=>setFormData({...formData, unavailableDates:e.target.value})} />
+                                <small style={{color:'#666'}}>Pisahkan dengan koma. Format wajib YYYY-MM-DD.</small>
                             </div>
                         </>
                     )}
