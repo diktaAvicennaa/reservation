@@ -56,11 +56,7 @@ export default function BookingPage() {
     
     setLoading(true);
     try {
-        const q = query(
-          collection(db, "reservations"),
-          where("date", "==", date),
-          where("time", "==", time)
-        );
+        const q = query(collection(db, "reservations"), where("date", "==", date));
         const snap = await getDocs(q);
         const booked = snap.docs.map(d => d.data()).filter(data => data.status !== 'rejected').map(data => data.spotId);
             
