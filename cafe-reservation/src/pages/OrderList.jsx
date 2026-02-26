@@ -56,9 +56,25 @@ export default function OrderList() {
     try {
       setLoading(true);
       const s = await getDocs(collection(db, "reservations"));
+      const now = Date.now();
       const data = s.docs
         .map(d => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => getReservationTimestamp(b) - getReservationTimestamp(a));
+        .sort((a, b) => {
+          const aTs = getReservationTimestamp(a);
+          const bTs = getReservationTimestamp(b);
+
+          const aUpcoming = aTs >= now;
+          const bUpcoming = bTs >= now;
+
+          if (aUpcoming && !bUpcoming) return -1;
+          if (!aUpcoming && bUpcoming) return 1;
+
+          if (aUpcoming && bUpcoming) {
+            return aTs - bTs;
+          }
+
+          return bTs - aTs;
+        });
       setReservations(data);
       console.log("Data pesanan:", data);
     } catch (err) {
