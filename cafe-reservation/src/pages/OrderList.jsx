@@ -10,6 +10,43 @@ export default function OrderList() {
   const [error, setError] = useState(null);
   const [products, setProducts] = useState([]);
 
+  const parseDateTimeToMs = (dateValue, timeValue) => {
+    if (!dateValue) return 0;
+
+    const dateText = String(dateValue).trim();
+    const timeText = String(timeValue || "00:00").trim();
+    const normalizedTime = /^\d{1,2}:\d{2}$/.test(timeText)
+      ? `${timeText.padStart(5, "0")}:00`
+      : "00:00:00";
+
+    const directParse = Date.parse(`${dateText} ${normalizedTime}`);
+    if (!Number.isNaN(directParse)) return directParse;
+
+    const slashMatch = dateText.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (!slashMatch) return 0;
+
+    const day = slashMatch[1].padStart(2, "0");
+    const month = slashMatch[2].padStart(2, "0");
+    const yearRaw = slashMatch[3];
+    const year = yearRaw.length === 2 ? `20${yearRaw}` : yearRaw;
+
+    const isoParse = Date.parse(`${year}-${month}-${day}T${normalizedTime}`);
+    return Number.isNaN(isoParse) ? 0 : isoParse;
+  };
+
+  const getReservationTimestamp = (reservation) => {
+    const reservationDateMs = parseDateTimeToMs(reservation?.date, reservation?.time);
+    if (reservationDateMs > 0) {
+      return reservationDateMs;
+    }
+
+    const createdAtMs = reservation?.createdAt?.toMillis?.();
+    if (typeof createdAtMs === "number" && createdAtMs > 0) {
+      return createdAtMs;
+    }
+    return 0;
+  };
+
   useEffect(() => {
     fetchReservations();
     fetchProducts();
@@ -19,7 +56,9 @@ export default function OrderList() {
     try {
       setLoading(true);
       const s = await getDocs(collection(db, "reservations"));
-      const data = s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+      const data = s.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => getReservationTimestamp(b) - getReservationTimestamp(a));
       setReservations(data);
       console.log("Data pesanan:", data);
     } catch (err) {
