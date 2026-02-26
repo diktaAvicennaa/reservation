@@ -131,6 +131,12 @@ export default function BookingPage() {
     } catch (error) { alert("Gagal menyimpan reservasi."); } finally { setLoading(false); }
   };
 
+  const handleGoToPackages = () => {
+    if (!partySize || partySize < 1) return alert("Jumlah orang minimal 1 ya.");
+    if (!selectedSpot) return alert("Silakan pilih tempat duduk yang tersedia terlebih dahulu!");
+    setStep(3);
+  };
+
   const generateWaLink = () => {
     const phoneNumber = "6288989719187"; 
     const orderText = bundles.map(b => {
@@ -170,6 +176,15 @@ export default function BookingPage() {
         {step === 2 && (
           <div className="mt-4">
             <h2 className="text-lg mb-4 text-primary text-center">📍 Pilih Tempat Duduk</h2>
+
+            {selectedSpot && (
+              <div style={{ position:'fixed', bottom:0, left:0, right:0, padding:'16px', background:'white', borderTop:'1px solid #eee', boxShadow:'0 -5px 15px rgba(0,0,0,0.05)', zIndex: 110 }}>
+                <div className="container flex gap-2" style={{padding: 0}}>
+                  <button onClick={() => setStep(1)} className="btn btn-ghost" style={{flex:1}}>Kembali</button>
+                  <button onClick={handleGoToPackages} className="btn btn-primary" style={{flex:2}}>LANJUT PILIH PAKET ➔</button>
+                </div>
+              </div>
+            )}
             
             <div className="card mb-4" style={{background: '#f9f9f9', padding: '15px'}}>
                <label className="label" style={{marginBottom: '5px'}}> Untuk Berapa Orang?</label>
@@ -235,14 +250,12 @@ export default function BookingPage() {
                 </div>
             )}
 
-            <div className="flex mt-4 gap-2">
-                <button onClick={() => setStep(1)} className="btn btn-ghost" style={{flex:1}}>Kembali</button>
-                <button onClick={() => {
-                  if (!partySize || partySize < 1) return alert("Jumlah orang minimal 1 ya.");
-                    if(!selectedSpot) return alert("Silakan pilih tempat duduk yang tersedia terlebih dahulu!");
-                    setStep(3);
-                }} className="btn btn-primary" style={{flex:2}}>LANJUT PILIH PAKET ➔</button>
-            </div>
+            {!selectedSpot && (
+              <div className="flex mt-4 gap-2">
+                  <button onClick={() => setStep(1)} className="btn btn-ghost" style={{flex:1}}>Kembali</button>
+                  <button onClick={handleGoToPackages} className="btn btn-primary" style={{flex:2}}>LANJUT PILIH PAKET ➔</button>
+              </div>
+            )}
           </div>
         )}
 
