@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 export default function OrderList() {
   const navigate = useNavigate();
   const [reservations, setReservations] = useState([]);
+  const [dateSort, setDateSort] = useState("newest");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [products, setProducts] = useState([]);
@@ -56,25 +57,7 @@ export default function OrderList() {
     try {
       setLoading(true);
       const s = await getDocs(collection(db, "reservations"));
-      const now = Date.now();
-      const data = s.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => {
-          const aTs = getReservationTimestamp(a);
-          const bTs = getReservationTimestamp(b);
-
-          const aUpcoming = aTs >= now;
-          const bUpcoming = bTs >= now;
-
-          if (aUpcoming && !bUpcoming) return -1;
-          if (!aUpcoming && bUpcoming) return 1;
-
-          if (aUpcoming && bUpcoming) {
-            return aTs - bTs;
-          }
-
-          return bTs - aTs;
-        });
+      const data = s.docs.map(d => ({ id: d.id, ...d.data() }));
       setReservations(data);
       console.log("Data pesanan:", data);
     } catch (err) {
@@ -121,6 +104,12 @@ export default function OrderList() {
     });
   };
 
+  const sortedReservations = [...reservations].sort((a, b) => {
+    const aTs = getReservationTimestamp(a);
+    const bTs = getReservationTimestamp(b);
+    return dateSort === "oldest" ? aTs - bTs : bTs - aTs;
+  });
+
   return (
     <div className="admin-container">
       {/* NAVBAR */}
@@ -147,6 +136,15 @@ export default function OrderList() {
 
         {/* DAFTAR PESANAN READ-ONLY */}
         {!loading && !error && (
+          <>
+            <div className="card" style={{marginBottom:'15px', padding:'1px 16px', display:'flex', justifyContent:'flex-end', alignItems:'center', gap:'10px'}}>
+              <label className="label" style={{margin:0}}>Urutkan Berdasarkan</label>
+              <select className="input" value={dateSort} onChange={(e) => setDateSort(e.target.value)} style={{maxWidth:'220px', height:'50px'}}>
+                <option value="newest">Tanggal terjauh</option>
+                <option value="oldest">Tanggal terdekat</option>
+              </select>
+            </div>
+
           <div className="table-container">
             <div className="order-list-desktop">
               <table>
@@ -161,7 +159,7 @@ export default function OrderList() {
                   </tr>
                 </thead>
                 <tbody>
-                  {reservations.map((res) => (
+                  {sortedReservations.map((res) => (
                     <tr key={res.id}>
                       <td className="force-nowrap" style={{verticalAlign: 'top'}}>
                         <div style={{fontWeight:'bold', color: '#047857'}}>{res.time}</div>
@@ -213,7 +211,7 @@ export default function OrderList() {
             </div>
 
             <div className="order-list-mobile">
-              {reservations.map((res) => (
+              {sortedReservations.map((res) => (
                 <div className="order-card" key={res.id}>
                   <div className="order-card-header">
                     <div>
@@ -280,8 +278,9 @@ export default function OrderList() {
               ))}
             </div>
 
-            {reservations.length === 0 && <div className="empty-state">Belum ada pesanan masuk.</div>}
+            {sortedReservations.length === 0 && <div className="empty-state">Belum ada pesanan masuk.</div>}
           </div>
+          </>
         )}
       </div>
     </div>

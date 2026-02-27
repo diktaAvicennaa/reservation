@@ -52,7 +52,15 @@ export default function BookingPage() {
 
   const handleStep1Submit = async () => {
     if(!date || !time) return alert("Mohon isi tanggal & jam kedatangan dulu ya 🙏");
-    if (new Date(`${date}T${time}`) < new Date()) return alert("Waktu sudah berlalu! Mohon pilih jadwal masa depan 😅");
+    const selectedDateTime = new Date(`${date}T${time}`);
+    const now = new Date();
+    if (selectedDateTime < now) return alert("Waktu sudah berlalu! Mohon pilih jadwal masa depan 😅");
+
+    const isSameDay = selectedDateTime.toDateString() === now.toDateString();
+    const sameDayCutoff = new Date(`${date}T14:59`);
+    if (isSameDay && selectedDateTime > sameDayCutoff) {
+      return alert("Untuk reservasi di hari yang sama, jam maksimal adalah 15:00 ya 🙏");
+    }
     
     setLoading(true);
     try {

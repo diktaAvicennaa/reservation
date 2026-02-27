@@ -7,6 +7,7 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("orders");
   const [reservations, setReservations] = useState([]);
+    const [dateSort, setDateSort] = useState("newest");
   const [packages, setPackages] = useState([]);
   const [products, setProducts] = useState([]);
   const [spots, setSpots] = useState([]); 
@@ -25,9 +26,42 @@ export default function AdminDashboard() {
     return () => unsubscribe();
   }, []);
 
+    const parseDateTimeToMs = (dateValue, timeValue) => {
+        if (!dateValue) return 0;
+
+        const dateText = String(dateValue).trim();
+        const timeText = String(timeValue || "00:00").trim();
+        const normalizedTime = /^\d{1,2}:\d{2}$/.test(timeText)
+            ? `${timeText.padStart(5, "0")}:00`
+            : "00:00:00";
+
+        const directParse = Date.parse(`${dateText} ${normalizedTime}`);
+        if (!Number.isNaN(directParse)) return directParse;
+
+        const slashMatch = dateText.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+        if (!slashMatch) return 0;
+
+        const day = slashMatch[1].padStart(2, "0");
+        const month = slashMatch[2].padStart(2, "0");
+        const yearRaw = slashMatch[3];
+        const year = yearRaw.length === 2 ? `20${yearRaw}` : yearRaw;
+
+        const isoParse = Date.parse(`${year}-${month}-${day}T${normalizedTime}`);
+        return Number.isNaN(isoParse) ? 0 : isoParse;
+    };
+
+    const getReservationTimestamp = (reservation) => {
+        const reservationDateMs = parseDateTimeToMs(reservation?.date, reservation?.time);
+        if (reservationDateMs > 0) return reservationDateMs;
+
+        const createdAtMs = reservation?.createdAt?.toMillis?.();
+        if (typeof createdAtMs === "number" && createdAtMs > 0) return createdAtMs;
+        return 0;
+    };
+
   const fetchReservations = async () => {
     const s = await getDocs(collection(db, "reservations"));
-    setReservations(s.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.createdAt - a.createdAt));
+        setReservations(s.docs.map(d => ({ id: d.id, ...d.data() })));
   };
   const fetchPackages = async () => {
     const s = await getDocs(collection(db, "packages"));
@@ -47,6 +81,36 @@ export default function AdminDashboard() {
     if(!confirm("Yakin hapus riwayat pesanan ini?")) return;
     await deleteDoc(doc(db, "reservations", id)); fetchReservations();
   };
+
+    const handleUpdateReservationDate = async (id, newDate) => {
+        if (!newDate) return;
+
+        const currentReservation = reservations.find(r => r.id === id);
+        if (!currentReservation) return;
+        if (currentReservation.date === newDate) return;
+
+        if (currentReservation?.spotId && currentReservation?.time) {
+            const conflictQuery = query(
+                collection(db, "reservations"),
+                where("date", "==", newDate),
+                where("time", "==", currentReservation.time),
+                where("spotId", "==", currentReservation.spotId)
+            );
+            const conflictSnap = await getDocs(conflictQuery);
+            const hasConflict = conflictSnap.docs.some(d => {
+                const data = d.data();
+                return d.id !== id && data.status !== "rejected";
+            });
+
+            if (hasConflict) {
+                alert(`Tanggal ${newDate} bentrok: tempat ${currentReservation.spotName || "terpilih"} jam ${currentReservation.time} sudah terisi.`);
+                return;
+            }
+        }
+
+        await updateDoc(doc(db, "reservations", id), { date: newDate });
+        fetchReservations();
+    };
   
   const handleUpdateSpot = async (id, spotId) => {
     const spot = spots.find(s => s.id === spotId);
@@ -157,6 +221,12 @@ export default function AdminDashboard() {
       return ids.map(id => products.find(p => p.id === id)?.name).filter(Boolean).join(", ");
   };
 
+    const sortedReservations = [...reservations].sort((a, b) => {
+        const aTs = getReservationTimestamp(a);
+        const bTs = getReservationTimestamp(b);
+        return dateSort === "oldest" ? aTs - bTs : bTs - aTs;
+    });
+
   return (
     <div style={{minHeight:'100vh', paddingBottom:'50px', background:'#f4f7f6'}}>
       <div className="navbar">
@@ -176,17 +246,31 @@ export default function AdminDashboard() {
 
         {/* TAB 1: ORDERS */}
         {activeTab === 'orders' && (
-          <div className="card table-container">
-            <table>
+                    <>
+                        <div className="card" style={{marginBottom:'15px', padding:'12px 16px', display:'flex', justifyContent:'flex-end', alignItems:'center', gap:'10px'}}>
+                            <label className="label" style={{margin:0}}>Urutkan Berdasarkan</label>
+                            <select className="input" value={dateSort} onChange={(e) => setDateSort(e.target.value)} style={{maxWidth:'220px', height:'50px'}}>
+                                <option value="newest">Tanggal terjauh</option>
+                                <option value="oldest">Tanggal terdekat</option>
+                            </select>
+                        </div>
+                    <div className="card table-container">
+                        <table>
                 <thead>
                   <tr><th>Waktu</th><th>Pelanggan</th><th>Tempat & Pax</th><th>Pesanan (Paket)</th><th>Total</th><th>Aksi</th></tr>
                 </thead>
                 <tbody>
-                  {reservations.map((res) => (
+                                    {sortedReservations.map((res) => (
                     <tr key={res.id}>
                       <td style={{verticalAlign: 'middle'}}>
                         <div style={{fontWeight:'bold', color: '#047857', fontSize: '1.1em'}}>{res.time}</div>
-                        <small>{res.date}</small><br/>
+                                                <input
+                                                    type="date"
+                                                    className="input"
+                                                    value={res.date || ""}
+                                                    onChange={(e) => handleUpdateReservationDate(res.id, e.target.value)}
+                                                    style={{marginTop:'6px', marginBottom:'6px', maxWidth:'170px', padding:'6px 8px', fontSize:'0.85em'}}
+                                                /><br/>
                         <span className={`badge ${res.status==='confirmed'?'badge-green':res.status==='rejected'?'badge-red':'badge-yellow'}`} style={{marginTop:'5px', display:'inline-block'}}>
                             {res.status === 'confirmed' ? 'Diterima' : res.status === 'rejected' ? 'Ditolak' : 'Menunggu'}
                         </span>
@@ -239,6 +323,7 @@ export default function AdminDashboard() {
                 </tbody>
             </table>
           </div>
+                    </>
         )}
 
         {/* TAB 2: KELOLA PAKET (TANPA GAMBAR) */}
