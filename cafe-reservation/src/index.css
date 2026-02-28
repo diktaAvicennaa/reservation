@@ -219,9 +219,11 @@ table td {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   padding: 14px;
-  margin: 12px;
+  margin: 0;
   background: #ffffff;
   box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .order-card-header {
@@ -259,8 +261,10 @@ table td {
 
 .order-value {
   flex: 1;
+  min-width: 0;
   font-size: 14px;
   color: #111827;
+  overflow-wrap: anywhere;
 }
 
 .order-sep {
@@ -274,7 +278,8 @@ table td {
 }
 
 .order-item {
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .order-notes {
@@ -295,6 +300,25 @@ table td {
   border-radius: 999px;
   padding: 6px 12px;
   font-size: 14px;
+}
+
+.sort-card {
+  margin-bottom: 5px;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+}
+
+.sort-label {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.sort-select {
+  max-width: 220px;
+  height: 45px;
 }
 
 @media (max-width: 768px) {
@@ -321,6 +345,18 @@ table td {
   .order-list-mobile {
     display: grid;
     gap: 12px;
+  }
+
+  .sort-card {
+    justify-content: flex-start;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .sort-select {
+    max-width: 100%;
+    width: 100%;
   }
 }
 

@@ -137,9 +137,9 @@ export default function OrderList() {
         {/* DAFTAR PESANAN READ-ONLY */}
         {!loading && !error && (
           <>
-            <div className="card" style={{marginBottom:'15px', padding:'1px 16px', display:'flex', justifyContent:'flex-end', alignItems:'center', gap:'10px'}}>
-              <label className="label" style={{margin:0}}>Urutkan Berdasarkan</label>
-              <select className="input" value={dateSort} onChange={(e) => setDateSort(e.target.value)} style={{maxWidth:'220px', height:'50px'}}>
+            <div className="card sort-card">
+              <label className="label sort-label">Urutkan Berdasarkan</label>
+              <select className="input sort-select" value={dateSort} onChange={(e) => setDateSort(e.target.value)}>
                 <option value="newest">Tanggal terjauh</option>
                 <option value="oldest">Tanggal terdekat</option>
               </select>

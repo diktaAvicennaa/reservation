@@ -249,7 +249,7 @@ export default function AdminDashboard() {
                     <>
                         <div className="card" style={{marginBottom:'15px', padding:'12px 16px', display:'flex', justifyContent:'flex-end', alignItems:'center', gap:'10px'}}>
                             <label className="label" style={{margin:0}}>Urutkan Berdasarkan</label>
-                            <select className="input" value={dateSort} onChange={(e) => setDateSort(e.target.value)} style={{maxWidth:'220px', height:'50px'}}>
+                            <select className="input" value={dateSort} onChange={(e) => setDateSort(e.target.value)} style={{maxWidth:'220px', height:'45px'}}>
                                 <option value="newest">Tanggal terjauh</option>
                                 <option value="oldest">Tanggal terdekat</option>
                             </select>
