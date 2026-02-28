@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { db, auth } from "../firebase";
-import { collection, query, where, getDocs, addDoc } from "firebase/firestore";
+import { collection, query, where, getDocs, runTransaction, doc } from "firebase/firestore";
 
 export default function BookingPage() {
   const [step, setStep] = useState(1);
@@ -50,31 +50,57 @@ export default function BookingPage() {
     setTotalPrice(total);
   }, [bundles]);
 
-  const handleStep1Submit = async () => {
-    if(!date || !time) return alert("Mohon isi tanggal & jam kedatangan dulu ya 🙏");
+  const buildReservationLockId = (reservationDate, spotId) => `${reservationDate}__${spotId}`;
+
+  const getActiveReservationsByDate = async (reservationDate) => {
+    const q = query(collection(db, "reservations"), where("date", "==", reservationDate));
+    const snap = await getDocs(q);
+    return snap.docs
+      .map((d) => d.data())
+      .filter((reservation) => reservation?.status !== "rejected");
+  };
+
+  const validateReservationDateTime = () => {
+    if (!date || !time) {
+      alert("Mohon isi tanggal & jam kedatangan dulu ya 🙏");
+      return false;
+    }
+
     const selectedDateTime = new Date(`${date}T${time}`);
     const now = new Date();
-    if (selectedDateTime < now) return alert("Waktu sudah berlalu! Mohon pilih jadwal masa depan 😅");
+
+    if (selectedDateTime < now) {
+      alert("Waktu sudah berlalu! Mohon pilih jadwal masa depan 😅");
+      return false;
+    }
 
     const isSameDay = selectedDateTime.toDateString() === now.toDateString();
-    const sameDayCutoff = new Date(`${date}T14:59`);
-    if (isSameDay && selectedDateTime > sameDayCutoff) {
-      return alert("Untuk reservasi di hari yang sama, jam maksimal adalah 15:00 ya 🙏");
+    const sameDayBookingDeadline = new Date(now);
+    sameDayBookingDeadline.setHours(15, 0, 0, 0);
+
+    if (isSameDay && now >= sameDayBookingDeadline) {
+      alert("Reservasi untuk hari ini hanya bisa dibuat sebelum jam 15:00 ya 🙏");
+      return false;
     }
+
+    return true;
+  };
+
+  const handleStep1Submit = async () => {
+    if (!validateReservationDateTime()) return;
     
     setLoading(true);
     try {
-        const q = query(collection(db, "reservations"), where("date", "==", date));
-        const snap = await getDocs(q);
-        const booked = snap.docs.map(d => d.data()).filter(data => data.status !== 'rejected').map(data => data.spotId);
+      const activeReservations = await getActiveReservationsByDate(date);
+      const booked = activeReservations.map((data) => data.spotId);
             
-        setBookedSpots(booked);
-        setSelectedSpot(null);
-        setStep(2); 
+      setBookedSpots(booked);
+      setSelectedSpot(null);
+      setStep(2); 
     } catch(e) {
-        alert("Gagal mengecek ketersediaan tempat.");
+      alert("Gagal mengecek ketersediaan tempat.");
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -120,23 +146,79 @@ export default function BookingPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!validateReservationDateTime()) return;
+
     if (bundles.length !== partySize) {
       return alert(`Jumlah paket harus sama dengan jumlah orang (${partySize} orang). Saat ini baru ${bundles.length} paket.`);
     }
+    if (!selectedSpot?.id) {
+      return alert("Silakan pilih tempat duduk yang tersedia terlebih dahulu.");
+    }
+
     setLoading(true);
 
-    const orderItems = bundles.map(b => ({
-      name: b.name, qty: b.qty, price: b.unitPrice, subtotal: b.subtotal, selections: b.selections, note: b.note || "" 
+    const orderItems = bundles.map((b) => ({
+      name: b.name,
+      qty: b.qty,
+      price: b.unitPrice,
+      subtotal: b.subtotal,
+      selections: b.selections,
+      note: b.note || "",
     }));
 
     try {
-      await addDoc(collection(db, "reservations"), {
-        date, time, partySize, spotId: selectedSpot.id, spotName: selectedSpot.name, 
-        customerName: customer.name, customerPhone: customer.phone,
-        items: orderItems, totalPrice, status: "pending", createdAt: new Date()
+      const reservationRef = doc(collection(db, "reservations"));
+      const lockRef = doc(db, "reservationLocks", buildReservationLockId(date, selectedSpot.id));
+
+      await runTransaction(db, async (transaction) => {
+        const lockSnap = await transaction.get(lockRef);
+        const lockData = lockSnap.exists() ? lockSnap.data() : null;
+
+        if (lockData && lockData.status !== "rejected") {
+          throw new Error("spot-unavailable");
+        }
+
+        transaction.set(reservationRef, {
+          date,
+          time,
+          partySize,
+          spotId: selectedSpot.id,
+          spotName: selectedSpot.name,
+          customerName: customer.name,
+          customerPhone: customer.phone,
+          items: orderItems,
+          totalPrice,
+          status: "pending",
+          createdAt: new Date()
+        });
+
+        transaction.set(lockRef, {
+          reservationId: reservationRef.id,
+          date,
+          time,
+          spotId: selectedSpot.id,
+          spotName: selectedSpot.name,
+          status: "pending",
+          updatedAt: new Date()
+        });
       });
-      setStep(5); 
-    } catch (error) { alert("Gagal menyimpan reservasi."); } finally { setLoading(false); }
+
+      setStep(5);
+    } catch (error) {
+      if (error?.message === "spot-unavailable") {
+        const activeReservations = await getActiveReservationsByDate(date);
+        const latestBookedSpots = activeReservations.map((r) => r.spotId).filter(Boolean);
+        setBookedSpots(latestBookedSpots);
+        setSelectedSpot(null);
+        setStep(2);
+        alert("Maaf, tempat yang kamu pilih baru saja terisi. Silakan pilih tempat lain ya 🙏");
+      } else {
+        alert("Gagal menyimpan reservasi.");
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGoToPackages = () => {

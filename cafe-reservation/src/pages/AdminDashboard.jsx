@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { db, auth } from "../firebase";
-import { collection, getDocs, updateDoc, doc, deleteDoc, addDoc, deleteField, query, where } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, deleteDoc, addDoc, deleteField, query, where, setDoc, getDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 export default function AdminDashboard() {
@@ -76,10 +76,76 @@ export default function AdminDashboard() {
     setSpots(s.docs.map(d => ({ id: d.id, ...d.data() })));
   };
 
-  const handleStatus = async (id, status) => { await updateDoc(doc(db, "reservations", id), { status }); fetchReservations(); };
+    const buildReservationLockId = (reservationDate, spotId) => `${reservationDate}__${spotId}`;
+
+    const syncReservationLock = async ({ reservationId, date, time, spotId, spotName, status }) => {
+        if (!reservationId || !date || !spotId) return;
+        const lockRef = doc(db, "reservationLocks", buildReservationLockId(date, spotId));
+        await setDoc(lockRef, {
+            reservationId,
+            date,
+            time: time || "",
+            spotId,
+            spotName: spotName || "",
+            status: status || "pending",
+            updatedAt: new Date()
+        }, { merge: true });
+    };
+
+    const releaseReservationLockIfOwned = async ({ reservationId, date, spotId }) => {
+        if (!reservationId || !date || !spotId) return;
+        const lockRef = doc(db, "reservationLocks", buildReservationLockId(date, spotId));
+        const lockSnap = await getDoc(lockRef);
+        if (!lockSnap.exists()) return;
+
+        const lockData = lockSnap.data();
+        if (lockData?.reservationId !== reservationId) return;
+
+        await setDoc(lockRef, {
+            status: "rejected",
+            updatedAt: new Date()
+        }, { merge: true });
+    };
+
+    const handleStatus = async (id, status) => {
+        const currentReservation = reservations.find(r => r.id === id);
+        await updateDoc(doc(db, "reservations", id), { status });
+
+        if (currentReservation?.date && currentReservation?.spotId) {
+            if (status === "rejected") {
+                await releaseReservationLockIfOwned({
+                    reservationId: id,
+                    date: currentReservation.date,
+                    spotId: currentReservation.spotId
+                });
+            } else {
+                await syncReservationLock({
+                    reservationId: id,
+                    date: currentReservation.date,
+                    time: currentReservation.time,
+                    spotId: currentReservation.spotId,
+                    spotName: currentReservation.spotName,
+                    status
+                });
+            }
+        }
+
+        fetchReservations();
+    };
   const handleDeleteReservation = async (id) => {
     if(!confirm("Yakin hapus riwayat pesanan ini?")) return;
-    await deleteDoc(doc(db, "reservations", id)); fetchReservations();
+        const currentReservation = reservations.find(r => r.id === id);
+        await deleteDoc(doc(db, "reservations", id));
+
+        if (currentReservation?.date && currentReservation?.spotId) {
+            await releaseReservationLockIfOwned({
+                reservationId: id,
+                date: currentReservation.date,
+                spotId: currentReservation.spotId
+            });
+        }
+
+        fetchReservations();
   };
 
     const handleUpdateReservationDate = async (id, newDate) => {
@@ -109,6 +175,24 @@ export default function AdminDashboard() {
         }
 
         await updateDoc(doc(db, "reservations", id), { date: newDate });
+
+        if (currentReservation?.spotId) {
+            await releaseReservationLockIfOwned({
+                reservationId: id,
+                date: currentReservation.date,
+                spotId: currentReservation.spotId
+            });
+
+            await syncReservationLock({
+                reservationId: id,
+                date: newDate,
+                time: currentReservation.time,
+                spotId: currentReservation.spotId,
+                spotName: currentReservation.spotName,
+                status: currentReservation.status
+            });
+        }
+
         fetchReservations();
     };
   
@@ -118,6 +202,21 @@ export default function AdminDashboard() {
         const currentReservation = reservations.find(r => r.id === id);
         if (!currentReservation?.date || !currentReservation?.time) {
             await updateDoc(doc(db, "reservations", id), { spotId: spot.id, spotName: spot.name });
+
+            await releaseReservationLockIfOwned({
+                reservationId: id,
+                date: currentReservation.date,
+                spotId: currentReservation.spotId
+            });
+            await syncReservationLock({
+                reservationId: id,
+                date: currentReservation.date,
+                time: currentReservation.time,
+                spotId: spot.id,
+                spotName: spot.name,
+                status: currentReservation.status
+            });
+
             fetchReservations();
             return;
         }
@@ -140,6 +239,21 @@ export default function AdminDashboard() {
         }
 
         await updateDoc(doc(db, "reservations", id), { spotId: spot.id, spotName: spot.name });
+
+        await releaseReservationLockIfOwned({
+            reservationId: id,
+            date: currentReservation.date,
+            spotId: currentReservation.spotId
+        });
+        await syncReservationLock({
+            reservationId: id,
+            date: currentReservation.date,
+            time: currentReservation.time,
+            spotId: spot.id,
+            spotName: spot.name,
+            status: currentReservation.status
+        });
+
         fetchReservations();
     }
   };
