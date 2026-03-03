@@ -48,6 +48,34 @@ export default function OrderList() {
     return 0;
   };
 
+  const getReservationDayStartMs = (reservation) => {
+    if (!reservation?.date) return 0;
+
+    const dateText = String(reservation.date).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateText)) {
+      const [year, month, day] = dateText.split("-").map(Number);
+      return new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
+    }
+
+    const slashMatch = dateText.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+    if (slashMatch) {
+      const day = Number(slashMatch[1]);
+      const month = Number(slashMatch[2]);
+      const year = Number(slashMatch[3].length === 2 ? `20${slashMatch[3]}` : slashMatch[3]);
+      return new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
+    }
+
+    const parsed = Date.parse(`${dateText} 00:00:00`);
+    return Number.isNaN(parsed) ? 0 : new Date(parsed).setHours(0, 0, 0, 0);
+  };
+
+  const isReservationPastDay = (reservation) => {
+    const reservationDayMs = getReservationDayStartMs(reservation);
+    if (!reservationDayMs) return false;
+    const todayStartMs = new Date().setHours(0, 0, 0, 0);
+    return reservationDayMs < todayStartMs;
+  };
+
   useEffect(() => {
     fetchReservations();
     fetchProducts();
@@ -104,7 +132,9 @@ export default function OrderList() {
     });
   };
 
-  const sortedReservations = [...reservations].sort((a, b) => {
+  const visibleReservations = reservations.filter((reservation) => !isReservationPastDay(reservation));
+
+  const sortedReservations = [...visibleReservations].sort((a, b) => {
     const aTs = getReservationTimestamp(a);
     const bTs = getReservationTimestamp(b);
     return dateSort === "oldest" ? aTs - bTs : bTs - aTs;

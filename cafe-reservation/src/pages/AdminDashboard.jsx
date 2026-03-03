@@ -16,6 +16,11 @@ export default function AdminDashboard() {
   const [modalType, setModalType] = useState(""); 
   const [editingItem, setEditingItem] = useState(null);
   const [formData, setFormData] = useState({});
+    const [cleanupPromptShown, setCleanupPromptShown] = useState(false);
+
+    const [isOrderMenuModalOpen, setIsOrderMenuModalOpen] = useState(false);
+    const [editingReservation, setEditingReservation] = useState(null);
+    const [orderMenuItems, setOrderMenuItems] = useState([]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => { if (!user) navigate("/admin"); });
@@ -57,6 +62,34 @@ export default function AdminDashboard() {
         const createdAtMs = reservation?.createdAt?.toMillis?.();
         if (typeof createdAtMs === "number" && createdAtMs > 0) return createdAtMs;
         return 0;
+    };
+
+    const getReservationDayStartMs = (reservation) => {
+        if (!reservation?.date) return 0;
+
+        const dateText = String(reservation.date).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateText)) {
+            const [year, month, day] = dateText.split("-").map(Number);
+            return new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
+        }
+
+        const slashMatch = dateText.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+        if (slashMatch) {
+            const day = Number(slashMatch[1]);
+            const month = Number(slashMatch[2]);
+            const year = Number(slashMatch[3].length === 2 ? `20${slashMatch[3]}` : slashMatch[3]);
+            return new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
+        }
+
+        const parsed = Date.parse(`${dateText} 00:00:00`);
+        return Number.isNaN(parsed) ? 0 : new Date(parsed).setHours(0, 0, 0, 0);
+    };
+
+    const isReservationPastDay = (reservation) => {
+        const reservationDayMs = getReservationDayStartMs(reservation);
+        if (!reservationDayMs) return false;
+        const todayStartMs = new Date().setHours(0, 0, 0, 0);
+        return reservationDayMs < todayStartMs;
     };
 
   const fetchReservations = async () => {
@@ -147,6 +180,27 @@ export default function AdminDashboard() {
 
         fetchReservations();
   };
+
+    const handleCleanupPastReservations = async (pastReservationList = []) => {
+        if (!pastReservationList.length) return;
+
+        try {
+            for (const reservation of pastReservationList) {
+                await deleteDoc(doc(db, "reservations", reservation.id));
+                if (reservation?.date && reservation?.spotId) {
+                    await releaseReservationLockIfOwned({
+                        reservationId: reservation.id,
+                        date: reservation.date,
+                        spotId: reservation.spotId
+                    });
+                }
+            }
+            await fetchReservations();
+            alert(`${pastReservationList.length} pesanan beda hari berhasil dibersihkan.`);
+        } catch (error) {
+            alert("Gagal membersihkan pesanan beda hari. Coba lagi.");
+        }
+    };
 
     const handleUpdateReservationDate = async (id, newDate) => {
         if (!newDate) return;
@@ -258,6 +312,106 @@ export default function AdminDashboard() {
     }
   };
 
+    const handleOpenOrderMenuModal = (reservation) => {
+        const initialItems = (reservation?.items || []).map((item) => ({
+            name: item?.name || "",
+            qty: Number(item?.qty) || 1,
+            price: Number(item?.price) || 0,
+            selections: item?.selections || "",
+            note: item?.note || ""
+        }));
+
+        setEditingReservation(reservation);
+        setOrderMenuItems(initialItems.length ? initialItems : [{ name: "", qty: 1, price: 0, selections: "", note: "" }]);
+        setIsOrderMenuModalOpen(true);
+    };
+
+    const handleOrderMenuNameChange = (index, selectedName) => {
+        const selectedProduct = products.find((product) => product.name === selectedName);
+        setOrderMenuItems((prev) => {
+            const next = [...prev];
+            next[index] = {
+                ...next[index],
+                name: selectedName,
+                price: selectedProduct ? Number(selectedProduct.price) || 0 : next[index].price
+            };
+            return next;
+        });
+    };
+
+    const handleOrderMenuItemChange = (index, field, value) => {
+        setOrderMenuItems((prev) => {
+            const next = [...prev];
+            next[index] = {
+                ...next[index],
+                [field]: field === "qty" || field === "price" ? Number(value) || 0 : value
+            };
+            return next;
+        });
+    };
+
+    const handleAddOrderMenuItem = () => {
+        setOrderMenuItems((prev) => [...prev, { name: "", qty: 1, price: 0, selections: "", note: "" }]);
+    };
+
+    const handleRemoveOrderMenuItem = (index) => {
+        setOrderMenuItems((prev) => prev.filter((_, itemIndex) => itemIndex !== index));
+    };
+
+    const handleSaveOrderMenu = async (e) => {
+        e.preventDefault();
+        if (!editingReservation?.id) return;
+
+        const normalizedItems = orderMenuItems
+            .map((item) => {
+                const qty = Math.max(1, Number(item.qty) || 1);
+                const price = Math.max(0, Number(item.price) || 0);
+                return {
+                    name: String(item.name || "").trim(),
+                    qty,
+                    price,
+                    subtotal: qty * price,
+                    selections: String(item.selections || "").trim(),
+                    note: String(item.note || "").trim()
+                };
+            })
+            .filter((item) => item.name);
+
+        if (!normalizedItems.length) {
+            alert("Minimal harus ada 1 menu pesanan.");
+            return;
+        }
+
+        const newTotalPrice = normalizedItems.reduce((sum, item) => sum + item.subtotal, 0);
+
+        await updateDoc(doc(db, "reservations", editingReservation.id), {
+            items: normalizedItems,
+            totalPrice: newTotalPrice
+        });
+
+        setIsOrderMenuModalOpen(false);
+        setEditingReservation(null);
+        setOrderMenuItems([]);
+        fetchReservations();
+    };
+
+    useEffect(() => {
+        if (!reservations.length || cleanupPromptShown) return;
+
+        const pastReservations = reservations.filter(isReservationPastDay);
+        setCleanupPromptShown(true);
+
+        if (!pastReservations.length) return;
+
+        const shouldCleanup = confirm(
+            `Ada ${pastReservations.length} pesanan dari hari sebelumnya. Hapus permanen sekarang?`
+        );
+
+        if (shouldCleanup) {
+            handleCleanupPastReservations(pastReservations);
+        }
+    }, [reservations, cleanupPromptShown]);
+
   const handleDeleteItem = async (type, id) => { 
       if(confirm(`Yakin hapus data ini?`)) { 
           const col = type === 'package' ? "packages" : type === 'spot' ? "spots" : "products";
@@ -335,7 +489,10 @@ export default function AdminDashboard() {
       return ids.map(id => products.find(p => p.id === id)?.name).filter(Boolean).join(", ");
   };
 
-    const sortedReservations = [...reservations].sort((a, b) => {
+    const pastReservations = reservations.filter(isReservationPastDay);
+    const activeReservations = reservations.filter((reservation) => !isReservationPastDay(reservation));
+
+    const sortedReservations = [...activeReservations].sort((a, b) => {
         const aTs = getReservationTimestamp(a);
         const bTs = getReservationTimestamp(b);
         return dateSort === "oldest" ? aTs - bTs : bTs - aTs;
@@ -361,6 +518,21 @@ export default function AdminDashboard() {
         {/* TAB 1: ORDERS */}
         {activeTab === 'orders' && (
                     <>
+                                                {pastReservations.length > 0 && (
+                                                        <div className="card" style={{marginBottom:'15px', padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'12px', flexWrap:'wrap'}}>
+                                                                <span style={{color:'#92400e', fontWeight:600}}>⚠️ Ada {pastReservations.length} pesanan beda hari (disembunyikan dari daftar).</span>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (!confirm(`Hapus ${pastReservations.length} pesanan beda hari secara permanen?`)) return;
+                                                                        handleCleanupPastReservations(pastReservations);
+                                                                    }}
+                                                                    className="btn btn-danger"
+                                                                    style={{padding:'8px 12px'}}
+                                                                >
+                                                                    Bersihkan Sekarang
+                                                                </button>
+                                                        </div>
+                                                )}
                         <div className="card" style={{marginBottom:'15px', padding:'12px 16px', display:'flex', justifyContent:'flex-end', alignItems:'center', gap:'10px'}}>
                             <label className="label" style={{margin:0}}>Urutkan Berdasarkan</label>
                             <select className="input" value={dateSort} onChange={(e) => setDateSort(e.target.value)} style={{maxWidth:'220px', height:'45px'}}>
@@ -424,16 +596,23 @@ export default function AdminDashboard() {
                               <div className="flex flex-col gap-2">
                                   <button onClick={()=>handleStatus(res.id,'confirmed')} className="btn btn-primary" style={{padding:'8px', width:'100%'}}>✔ Terima</button>
                                   <button onClick={()=>handleStatus(res.id,'rejected')} className="btn btn-danger" style={{padding:'8px', width:'100%'}}>✖ Tolak</button>
+                                  <button onClick={()=>handleOpenOrderMenuModal(res)} className="btn btn-ghost" style={{padding:'8px', width:'100%', border:'1px solid #047857', color:'#047857'}}>✏️ Edit Menu</button>
                               </div>
                           ) : (
                               <div className="text-center">
                                  <div style={{fontSize:'0.8em', color:'#aaa', marginBottom:'5px'}}>Selesai</div>
+                                 <button onClick={()=>handleOpenOrderMenuModal(res)} className="btn btn-ghost" style={{width:'100%', padding:'8px', marginBottom:'6px', border:'1px solid #047857', color:'#047857'}}>✏️ Edit Menu</button>
                                  <button onClick={()=>handleDeleteReservation(res.id)} className="btn btn-ghost" style={{color:'red', width:'100%', padding:'8px'}}>🗑 Hapus</button>
                               </div>
                           )}
                       </td>
                     </tr>
                   ))}
+                                    {sortedReservations.length === 0 && (
+                                        <tr>
+                                            <td colSpan="6" style={{textAlign:'center', color:'#777', padding:'20px'}}>Belum ada pesanan aktif untuk hari ini atau setelahnya.</td>
+                                        </tr>
+                                    )}
                 </tbody>
             </table>
           </div>
@@ -610,6 +789,94 @@ export default function AdminDashboard() {
             </div>
         </div>
       )}
+
+            {isOrderMenuModalOpen && (
+                <div className="modal-overlay">
+                    <div className="modal-content" style={{maxWidth:'700px', maxHeight:'90vh', overflowY:'auto'}}>
+                        <h3 style={{color:'#047857'}}>Edit Menu Pesanan</h3>
+                        <form onSubmit={handleSaveOrderMenu}>
+                            {orderMenuItems.map((item, index) => (
+                                <div key={index} style={{border:'1px solid #e5e7eb', borderRadius:'8px', padding:'12px', marginBottom:'10px', background:'#fafafa'}}>
+                                    <div className="form-group">
+                                        <label className="label">Pilih Menu (Menu Master)</label>
+                                        <select
+                                            className="select"
+                                            required
+                                            value={item.name}
+                                            onChange={(e) => handleOrderMenuNameChange(index, e.target.value)}
+                                        >
+                                            <option value="" disabled>-- Pilih menu --</option>
+                                            {products.map((product) => (
+                                                <option key={product.id} value={product.name}>
+                                                    {product.name} - Rp {Number(product.price || 0).toLocaleString()}
+                                                </option>
+                                            ))}
+                                            {item.name && !products.some((product) => product.name === item.name) && (
+                                                <option value={item.name}>{item.name} (menu lama)</option>
+                                            )}
+                                        </select>
+                                    </div>
+                                    <div className="flex" style={{gap:'10px'}}>
+                                        <div className="form-group" style={{flex:1}}>
+                                            <label className="label">Qty</label>
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                className="input"
+                                                required
+                                                value={item.qty}
+                                                onChange={(e) => handleOrderMenuItemChange(index, "qty", e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="form-group" style={{flex:1}}>
+                                            <label className="label">Harga Satuan</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                className="input"
+                                                required
+                                                value={item.price}
+                                                onChange={(e) => handleOrderMenuItemChange(index, "price", e.target.value)}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="label">Pilihan (opsional)</label>
+                                        <input
+                                            className="input"
+                                            value={item.selections}
+                                            onChange={(e) => handleOrderMenuItemChange(index, "selections", e.target.value)}
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="label">Catatan (opsional)</label>
+                                        <input
+                                            className="input"
+                                            value={item.note}
+                                            onChange={(e) => handleOrderMenuItemChange(index, "note", e.target.value)}
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleRemoveOrderMenuItem(index)}
+                                        className="btn btn-danger"
+                                        style={{padding:'8px 12px'}}
+                                        disabled={orderMenuItems.length === 1}
+                                    >
+                                        Hapus Item
+                                    </button>
+                                </div>
+                            ))}
+
+                            <div className="flex" style={{gap:'10px', marginTop:'10px'}}>
+                                <button type="button" onClick={handleAddOrderMenuItem} className="btn btn-secondary" style={{flex:1}}>+ Tambah Item</button>
+                                <button type="button" onClick={() => setIsOrderMenuModalOpen(false)} className="btn btn-ghost" style={{flex:1}}>Batal</button>
+                                <button type="submit" className="btn btn-primary" style={{flex:2}}>Simpan Perubahan</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
     </div>
   );
 }
