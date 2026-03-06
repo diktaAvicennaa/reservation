@@ -503,11 +503,22 @@ export default function AdminDashboard() {
         ? sortedReservations.filter((reservation) => reservation.date === dateFilter)
         : sortedReservations;
 
-    const menuTotalsMap = filteredReservations.reduce((acc, reservation) => {
+    const summaryReservations = filteredReservations.filter(
+        (reservation) => reservation.status !== "rejected"
+    );
+
+    const parseItemQty = (qtyValue) => {
+        const qtyNumber = Number(qtyValue);
+        if (!Number.isFinite(qtyNumber) || qtyNumber <= 0) return 0;
+        return qtyNumber;
+    };
+
+    const menuTotalsMap = summaryReservations.reduce((acc, reservation) => {
         (reservation.items || []).forEach((item) => {
             const itemName = String(item?.name || "").trim();
             if (!itemName) return;
-            const qty = Math.max(1, Number(item?.qty) || 1);
+            const qty = parseItemQty(item?.qty);
+            if (!qty) return;
             acc[itemName] = (acc[itemName] || 0) + qty;
         });
         return acc;
@@ -543,9 +554,10 @@ export default function AdminDashboard() {
         return "food";
     };
 
-    filteredReservations.forEach((reservation) => {
+    summaryReservations.forEach((reservation) => {
         (reservation.items || []).forEach((item) => {
-            const qty = Math.max(1, Number(item?.qty) || 1);
+            const qty = parseItemQty(item?.qty);
+            if (!qty) return;
             const selectionsText = String(item?.selections || "").trim();
             if (!selectionsText) return;
 
@@ -623,6 +635,9 @@ export default function AdminDashboard() {
                     <div className="card" style={{marginBottom:'15px', padding:'14px 16px'}}>
                         <div style={{fontWeight:700, color:'#047857', marginBottom:'10px'}}>
                             Ringkasan Menu {dateFilter ? `(${dateFilter})` : "(semua tanggal aktif)"}
+                        </div>
+                        <div style={{fontSize:'0.85em', color:'#6b7280', marginBottom:'10px'}}>
+                            Perhitungan ringkasan tidak memasukkan pesanan berstatus Ditolak.
                         </div>
                         <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(250px, 1fr))', gap:'12px'}}>
                             <div style={{background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:'8px', padding:'12px'}}>
