@@ -8,6 +8,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("orders");
   const [reservations, setReservations] = useState([]);
     const [dateSort, setDateSort] = useState("newest");
+    const [dateFilter, setDateFilter] = useState("");
   const [packages, setPackages] = useState([]);
   const [products, setProducts] = useState([]);
   const [spots, setSpots] = useState([]); 
@@ -498,6 +499,77 @@ export default function AdminDashboard() {
         return dateSort === "oldest" ? aTs - bTs : bTs - aTs;
     });
 
+    const filteredReservations = dateFilter
+        ? sortedReservations.filter((reservation) => reservation.date === dateFilter)
+        : sortedReservations;
+
+    const menuTotalsMap = filteredReservations.reduce((acc, reservation) => {
+        (reservation.items || []).forEach((item) => {
+            const itemName = String(item?.name || "").trim();
+            if (!itemName) return;
+            const qty = Math.max(1, Number(item?.qty) || 1);
+            acc[itemName] = (acc[itemName] || 0) + qty;
+        });
+        return acc;
+    }, {});
+
+    const menuTotals = Object.entries(menuTotalsMap).sort((a, b) => b[1] - a[1]);
+    const productCategoryByName = products.reduce((acc, product) => {
+        const productName = String(product?.name || "").trim().toLowerCase();
+        if (!productName) return acc;
+        acc[productName] = String(product?.category || "").trim().toLowerCase();
+        return acc;
+    }, {});
+
+    const foodSubMenuTotalsMap = {};
+    const drinkSubMenuTotalsMap = {};
+
+    const categorizeSelectionName = (selectionName, indexInSelections, totalSelections) => {
+        const normalizedName = String(selectionName || "").trim().toLowerCase();
+        const category = productCategoryByName[normalizedName] || "";
+
+        if (category === "coffee" || category === "non-coffee" || category === "non-coffe") {
+            return "drink";
+        }
+
+        if (category === "food" || category === "snack") {
+            return "food";
+        }
+
+        if (totalSelections === 2 && indexInSelections === 1) {
+            return "drink";
+        }
+
+        return "food";
+    };
+
+    filteredReservations.forEach((reservation) => {
+        (reservation.items || []).forEach((item) => {
+            const qty = Math.max(1, Number(item?.qty) || 1);
+            const selectionsText = String(item?.selections || "").trim();
+            if (!selectionsText) return;
+
+            const subMenus = selectionsText
+                .split(/\s*&\s*|\s*,\s*|\s*\|\s*/)
+                .map((text) => text.trim())
+                .filter(Boolean);
+
+            subMenus.forEach((subMenu, index) => {
+                const categoryType = categorizeSelectionName(subMenu, index, subMenus.length);
+
+                if (categoryType === "drink") {
+                    drinkSubMenuTotalsMap[subMenu] = (drinkSubMenuTotalsMap[subMenu] || 0) + qty;
+                    return;
+                }
+
+                foodSubMenuTotalsMap[subMenu] = (foodSubMenuTotalsMap[subMenu] || 0) + qty;
+            });
+        });
+    });
+
+    const foodSubMenuTotals = Object.entries(foodSubMenuTotalsMap).sort((a, b) => b[1] - a[1]);
+    const drinkSubMenuTotals = Object.entries(drinkSubMenuTotalsMap).sort((a, b) => b[1] - a[1]);
+
   return (
     <div style={{minHeight:'100vh', paddingBottom:'50px', background:'#f4f7f6'}}>
       <div className="navbar">
@@ -534,19 +606,76 @@ export default function AdminDashboard() {
                                                         </div>
                                                 )}
                         <div className="card" style={{marginBottom:'15px', padding:'12px 16px', display:'flex', justifyContent:'flex-end', alignItems:'center', gap:'10px'}}>
+                            <label className="label" style={{margin:0}}>Filter Tanggal</label>
+                            <input
+                                type="date"
+                                className="input"
+                                value={dateFilter}
+                                onChange={(e) => setDateFilter(e.target.value)}
+                                style={{maxWidth:'190px', height:'45px'}}
+                            />
+                            {dateFilter && (
+                                <button className="btn btn-ghost" onClick={() => setDateFilter("")} style={{height:'45px'}}>Reset</button>
+                            )}
                             <label className="label" style={{margin:0}}>Urutkan Berdasarkan</label>
                             <select className="input" value={dateSort} onChange={(e) => setDateSort(e.target.value)} style={{maxWidth:'220px', height:'45px'}}>
                                 <option value="newest">Tanggal terjauh</option>
                                 <option value="oldest">Tanggal terdekat</option>
                             </select>
                         </div>
+                    <div className="card" style={{marginBottom:'15px', padding:'14px 16px'}}>
+                        <div style={{fontWeight:700, color:'#047857', marginBottom:'10px'}}>
+                            Ringkasan Menu {dateFilter ? `(${dateFilter})` : "(semua tanggal aktif)"}
+                        </div>
+                        <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(250px, 1fr))', gap:'12px'}}>
+                            <div style={{background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:'8px', padding:'12px'}}>
+                                <div style={{fontWeight:600, marginBottom:'8px'}}>Total Menu</div>
+                                {menuTotals.length > 0 ? (
+                                    menuTotals.map(([name, qty]) => (
+                                        <div key={name} style={{display:'flex', justifyContent:'space-between', gap:'10px', fontSize:'0.9em', marginBottom:'4px'}}>
+                                            <span>{name}</span>
+                                            <b>{qty}</b>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div style={{color:'#6b7280', fontSize:'0.9em'}}>Belum ada menu pada filter tanggal ini.</div>
+                                )}
+                            </div>
+                            <div style={{background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:'8px', padding:'12px'}}>
+                                <div style={{fontWeight:600, marginBottom:'8px'}}>Sub Menu Makanan</div>
+                                {foodSubMenuTotals.length > 0 ? (
+                                    foodSubMenuTotals.map(([name, qty]) => (
+                                        <div key={name} style={{display:'flex', justifyContent:'space-between', gap:'10px', fontSize:'0.9em', marginBottom:'4px'}}>
+                                            <span>{name}</span>
+                                            <b>{qty}</b>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div style={{color:'#6b7280', fontSize:'0.9em'}}>Belum ada sub menu makanan pada filter tanggal ini.</div>
+                                )}
+                            </div>
+                            <div style={{background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:'8px', padding:'12px'}}>
+                                <div style={{fontWeight:600, marginBottom:'8px'}}>Sub Menu Minuman</div>
+                                {drinkSubMenuTotals.length > 0 ? (
+                                    drinkSubMenuTotals.map(([name, qty]) => (
+                                        <div key={name} style={{display:'flex', justifyContent:'space-between', gap:'10px', fontSize:'0.9em', marginBottom:'4px'}}>
+                                            <span>{name}</span>
+                                            <b>{qty}</b>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div style={{color:'#6b7280', fontSize:'0.9em'}}>Belum ada sub menu minuman pada filter tanggal ini.</div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
                     <div className="card table-container">
                         <table>
                 <thead>
                   <tr><th>Waktu</th><th>Pelanggan</th><th>Tempat & Pax</th><th>Pesanan (Paket)</th><th>Total</th><th>Aksi</th></tr>
                 </thead>
                 <tbody>
-                                    {sortedReservations.map((res) => (
+                                    {filteredReservations.map((res) => (
                     <tr key={res.id}>
                       <td style={{verticalAlign: 'middle'}}>
                         <div style={{fontWeight:'bold', color: '#047857', fontSize: '1.1em'}}>{res.time}</div>
@@ -608,9 +737,13 @@ export default function AdminDashboard() {
                       </td>
                     </tr>
                   ))}
-                                    {sortedReservations.length === 0 && (
+                                    {filteredReservations.length === 0 && (
                                         <tr>
-                                            <td colSpan="6" style={{textAlign:'center', color:'#777', padding:'20px'}}>Belum ada pesanan aktif untuk hari ini atau setelahnya.</td>
+                                            <td colSpan="6" style={{textAlign:'center', color:'#777', padding:'20px'}}>
+                                                {dateFilter
+                                                    ? "Tidak ada pesanan untuk tanggal yang dipilih."
+                                                    : "Belum ada pesanan aktif untuk hari ini atau setelahnya."}
+                                            </td>
                                         </tr>
                                     )}
                 </tbody>
