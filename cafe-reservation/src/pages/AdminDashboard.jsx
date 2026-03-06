@@ -617,11 +617,8 @@ export default function AdminDashboard() {
                             {dateFilter && (
                                 <button className="btn btn-ghost" onClick={() => setDateFilter("")} style={{height:'45px'}}>Reset</button>
                             )}
-                            <label className="label" style={{margin:0}}>Urutkan Berdasarkan</label>
-                            <select className="input" value={dateSort} onChange={(e) => setDateSort(e.target.value)} style={{maxWidth:'220px', height:'45px'}}>
-                                <option value="newest">Tanggal terjauh</option>
-                                <option value="oldest">Tanggal terdekat</option>
-                            </select>
+
+                         
                         </div>
                     <div className="card" style={{marginBottom:'15px', padding:'14px 16px'}}>
                         <div style={{fontWeight:700, color:'#047857', marginBottom:'10px'}}>
