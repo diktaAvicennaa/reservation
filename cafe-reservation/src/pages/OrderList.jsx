@@ -137,7 +137,15 @@ export default function OrderList() {
   const sortedReservations = [...visibleReservations].sort((a, b) => {
     const aTs = getReservationTimestamp(a);
     const bTs = getReservationTimestamp(b);
-    return dateSort === "oldest" ? aTs - bTs : bTs - aTs;
+    const primaryDiff = dateSort === "oldest" ? aTs - bTs : bTs - aTs;
+    if (primaryDiff !== 0) return primaryDiff;
+
+    const aCreatedAtMs = a?.createdAt?.toMillis?.() || 0;
+    const bCreatedAtMs = b?.createdAt?.toMillis?.() || 0;
+    const createdAtDiff = aCreatedAtMs - bCreatedAtMs;
+    if (createdAtDiff !== 0) return createdAtDiff;
+
+    return String(a?.id || "").localeCompare(String(b?.id || ""));
   });
 
   return (
