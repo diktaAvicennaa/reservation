@@ -7,6 +7,8 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("orders");
   const [reservations, setReservations] = useState([]);
+    const [deletedReservations, setDeletedReservations] = useState([]);
+    const [restoreDatesById, setRestoreDatesById] = useState({});
     const [dateSort, setDateSort] = useState("newest");
     const [dateFilter, setDateFilter] = useState("");
   const [packages, setPackages] = useState([]);
@@ -26,6 +28,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => { if (!user) navigate("/admin"); });
     fetchReservations();
+    fetchDeletedReservations();
     fetchPackages();
     fetchProducts();
     fetchSpots();
@@ -97,6 +100,10 @@ export default function AdminDashboard() {
     const s = await getDocs(collection(db, "reservations"));
         setReservations(s.docs.map(d => ({ id: d.id, ...d.data() })));
   };
+    const fetchDeletedReservations = async () => {
+        const s = await getDocs(collection(db, "deletedReservations"));
+        setDeletedReservations(s.docs.map(d => ({ id: d.id, ...d.data() })));
+    };
   const fetchPackages = async () => {
     const s = await getDocs(collection(db, "packages"));
     setPackages(s.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -166,9 +173,18 @@ export default function AdminDashboard() {
 
         fetchReservations();
     };
-  const handleDeleteReservation = async (id) => {
-    if(!confirm("Yakin hapus riwayat pesanan ini?")) return;
+    const handleDeleteReservation = async (id) => {
+        if(!confirm("Pindahkan pesanan ini ke riwayat hapus?")) return;
         const currentReservation = reservations.find(r => r.id === id);
+        if (!currentReservation) return;
+
+        await setDoc(doc(db, "deletedReservations", id), {
+            ...currentReservation,
+            originalReservationId: id,
+            deletedAt: new Date(),
+            deletedReason: "manual"
+        }, { merge: true });
+
         await deleteDoc(doc(db, "reservations", id));
 
         if (currentReservation?.date && currentReservation?.spotId) {
@@ -180,13 +196,95 @@ export default function AdminDashboard() {
         }
 
         fetchReservations();
-  };
+        fetchDeletedReservations();
+    };
+
+    const hasReservationConflict = async ({ reservationId, date, time, spotId }) => {
+        if (!date || !time || !spotId) return false;
+
+        const conflictQuery = query(
+            collection(db, "reservations"),
+            where("date", "==", date),
+            where("time", "==", time),
+            where("spotId", "==", spotId)
+        );
+        const conflictSnap = await getDocs(conflictQuery);
+
+        return conflictSnap.docs.some(d => {
+            const data = d.data();
+            return d.id !== reservationId && data.status !== "rejected";
+        });
+    };
+
+    const handlePermanentDeleteFromTrash = async (id) => {
+        if (!confirm("Hapus permanen dari riwayat hapus? Tindakan ini tidak bisa dibatalkan.")) return;
+        await deleteDoc(doc(db, "deletedReservations", id));
+        fetchDeletedReservations();
+    };
+
+    const handleRestoreDeletedReservation = async (id) => {
+        const deletedReservation = deletedReservations.find(r => r.id === id);
+        if (!deletedReservation) return;
+
+        const selectedRestoreDate = restoreDatesById[id] || deletedReservation.date || "";
+        if (!selectedRestoreDate) {
+            alert("Tanggal restore wajib diisi.");
+            return;
+        }
+
+        const isConflict = await hasReservationConflict({
+            reservationId: id,
+            date: selectedRestoreDate,
+            time: deletedReservation.time,
+            spotId: deletedReservation.spotId
+        });
+
+        if (isConflict) {
+            alert(`Tanggal ${selectedRestoreDate} bentrok: tempat ${deletedReservation.spotName || "terpilih"} jam ${deletedReservation.time} sudah terisi.`);
+            return;
+        }
+
+        const { deletedAt, deletedReason, originalReservationId, ...restReservationData } = deletedReservation;
+
+        await setDoc(doc(db, "reservations", id), {
+            ...restReservationData,
+            date: selectedRestoreDate,
+            restoredAt: new Date()
+        });
+
+        if (deletedReservation?.spotId) {
+            await syncReservationLock({
+                reservationId: id,
+                date: selectedRestoreDate,
+                time: deletedReservation.time,
+                spotId: deletedReservation.spotId,
+                spotName: deletedReservation.spotName,
+                status: deletedReservation.status || "pending"
+            });
+        }
+
+        await deleteDoc(doc(db, "deletedReservations", id));
+        setRestoreDatesById((prev) => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+        });
+
+        fetchReservations();
+        fetchDeletedReservations();
+    };
 
     const handleCleanupPastReservations = async (pastReservationList = []) => {
         if (!pastReservationList.length) return;
 
         try {
             for (const reservation of pastReservationList) {
+                await setDoc(doc(db, "deletedReservations", reservation.id), {
+                    ...reservation,
+                    originalReservationId: reservation.id,
+                    deletedAt: new Date(),
+                    deletedReason: "past-day-cleanup"
+                }, { merge: true });
                 await deleteDoc(doc(db, "reservations", reservation.id));
                 if (reservation?.date && reservation?.spotId) {
                     await releaseReservationLockIfOwned({
@@ -197,9 +295,10 @@ export default function AdminDashboard() {
                 }
             }
             await fetchReservations();
-            alert(`${pastReservationList.length} pesanan beda hari berhasil dibersihkan.`);
+            await fetchDeletedReservations();
+            alert(`${pastReservationList.length} pesanan beda hari dipindah ke riwayat hapus.`);
         } catch (error) {
-            alert("Gagal membersihkan pesanan beda hari. Coba lagi.");
+            alert("Gagal memindahkan pesanan beda hari ke riwayat hapus. Coba lagi.");
         }
     };
 
@@ -604,19 +703,91 @@ export default function AdminDashboard() {
                     <>
                                                 {pastReservations.length > 0 && (
                                                         <div className="card" style={{marginBottom:'15px', padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center', gap:'12px', flexWrap:'wrap'}}>
-                                                                <span style={{color:'#92400e', fontWeight:600}}>⚠️ Ada {pastReservations.length} pesanan beda hari (disembunyikan dari daftar).</span>
+                                                                <span style={{color:'#92400e', fontWeight:600}}>⚠️ Ada {pastReservations.length} pesanan beda hari (disembunyikan dari daftar aktif).</span>
                                                                 <button
                                                                     onClick={() => {
-                                                                        if (!confirm(`Hapus ${pastReservations.length} pesanan beda hari secara permanen?`)) return;
+                                                                        if (!confirm(`Pindahkan ${pastReservations.length} pesanan beda hari ke riwayat hapus?`)) return;
                                                                         handleCleanupPastReservations(pastReservations);
                                                                     }}
-                                                                    className="btn btn-danger"
+                                                                    className="btn btn-ghost"
                                                                     style={{padding:'8px 12px'}}
                                                                 >
-                                                                    Bersihkan Sekarang
+                                                                    Pindahkan ke Riwayat Hapus
                                                                 </button>
                                                         </div>
                                                 )}
+
+                    {pastReservations.length > 0 && (
+                        <div className="card" style={{marginBottom:'15px', padding:'14px 16px'}}>
+                            <div style={{fontWeight:700, color:'#92400e', marginBottom:'10px'}}>Preview Pesanan Beda Hari</div>
+                            <div style={{display:'grid', gap:'8px'}}>
+                                {pastReservations.map((res) => (
+                                    <div
+                                        key={res.id}
+                                        style={{display:'grid', gridTemplateColumns:'1.2fr 1fr 1fr auto', gap:'10px', alignItems:'center', border:'1px solid #f3f4f6', borderRadius:'8px', padding:'10px'}}
+                                    >
+                                        <div>
+                                            <b>{res.customerName || "Tanpa Nama"}</b>
+                                            <div style={{fontSize:'0.85em', color:'#6b7280'}}>{res.customerPhone || "-"}</div>
+                                        </div>
+                                        <div>
+                                            <div style={{fontWeight:600}}>{res.date || "-"}</div>
+                                            <div style={{fontSize:'0.85em', color:'#6b7280'}}>{res.time || "-"}</div>
+                                        </div>
+                                        <div style={{fontSize:'0.9em'}}>{res.spotName || "Meja Standar"}</div>
+                                        <button onClick={() => handleDeleteReservation(res.id)} className="btn btn-danger" style={{padding:'6px 10px'}}>
+                                            Arsipkan
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="card" style={{marginBottom:'15px', padding:'14px 16px'}}>
+                        <div style={{fontWeight:700, color:'#334155', marginBottom:'10px'}}>Riwayat Hapus (Bisa Restore)</div>
+                        {deletedReservations.length === 0 ? (
+                            <div style={{fontSize:'0.9em', color:'#6b7280'}}>Belum ada pesanan di riwayat hapus.</div>
+                        ) : (
+                            <div style={{display:'grid', gap:'10px'}}>
+                                {deletedReservations
+                                    .sort((a, b) => {
+                                        const aTs = a?.deletedAt?.toMillis?.() || 0;
+                                        const bTs = b?.deletedAt?.toMillis?.() || 0;
+                                        return bTs - aTs;
+                                    })
+                                    .map((res) => (
+                                        <div key={res.id} style={{border:'1px solid #e5e7eb', borderRadius:'8px', padding:'10px'}}>
+                                            <div style={{display:'flex', justifyContent:'space-between', gap:'8px', alignItems:'center', flexWrap:'wrap'}}>
+                                                <div>
+                                                    <b>{res.customerName || "Tanpa Nama"}</b>
+                                                    <div style={{fontSize:'0.85em', color:'#6b7280'}}>
+                                                        {res.time || "-"} | {res.date || "-"} | {res.spotName || "Meja Standar"}
+                                                    </div>
+                                                </div>
+                                                <span className="badge badge-red">Terhapus</span>
+                                            </div>
+                                            <div style={{display:'flex', gap:'8px', marginTop:'10px', flexWrap:'wrap', alignItems:'center'}}>
+                                                <input
+                                                    type="date"
+                                                    className="input"
+                                                    value={restoreDatesById[res.id] ?? (res.date || "")}
+                                                    onChange={(e) => setRestoreDatesById((prev) => ({ ...prev, [res.id]: e.target.value }))}
+                                                    style={{maxWidth:'180px', height:'40px'}}
+                                                />
+                                                <button onClick={() => handleRestoreDeletedReservation(res.id)} className="btn btn-primary" style={{padding:'8px 12px'}}>
+                                                    Restore
+                                                </button>
+                                                <button onClick={() => handlePermanentDeleteFromTrash(res.id)} className="btn btn-danger" style={{padding:'8px 12px'}}>
+                                                    Hapus Permanen
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        )}
+                    </div>
+
                         <div className="card" style={{marginBottom:'15px', padding:'12px 16px', display:'flex', justifyContent:'flex-end', alignItems:'center', gap:'10px'}}>
                             <label className="label" style={{margin:0}}>Filter Tanggal</label>
                             <input
