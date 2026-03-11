@@ -132,6 +132,43 @@ export default function OrderList() {
     });
   };
 
+  const parseItemQty = (qtyValue) => {
+    const qtyNumber = Number(qtyValue);
+    if (!Number.isFinite(qtyNumber) || qtyNumber <= 0) return 0;
+    return qtyNumber;
+  };
+
+  const extractSubMenusFromItem = (item) => {
+    if (!item) return [];
+
+    if (Array.isArray(item.subMenus)) {
+      return item.subMenus
+        .map((subMenu) => String(subMenu || "").trim())
+        .filter(Boolean);
+    }
+
+    return String(item.selections || "")
+      .split(/\s*&\s*|\s*,\s*|\s*\|\s*/)
+      .map((text) => text.trim())
+      .filter(Boolean);
+  };
+
+  const getReservationSubMenuTotals = (reservation) => {
+    const totals = {};
+
+    (reservation?.items || []).forEach((item) => {
+      const qty = parseItemQty(item?.qty);
+      if (!qty) return;
+
+      const subMenus = extractSubMenusFromItem(item);
+      subMenus.forEach((subMenu) => {
+        totals[subMenu] = (totals[subMenu] || 0) + qty;
+      });
+    });
+
+    return Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  };
+
   const visibleReservations = reservations.filter((reservation) => !isReservationPastDay(reservation));
 
   const sortedReservations = [...visibleReservations].sort((a, b) => {
@@ -233,6 +270,17 @@ export default function OrderList() {
                             )}
                           </div>
                         ))}
+                        {getReservationSubMenuTotals(res).length > 0 && (
+                          <div style={{marginTop:'6px', background:'#f0fdfa', border:'1px solid #99f6e4', borderRadius:'6px', padding:'8px'}}>
+                            <div style={{fontSize:'0.82em', fontWeight:600, color:'#0f766e', marginBottom:'4px'}}>Sub menu & total</div>
+                            {getReservationSubMenuTotals(res).map(([subMenuName, totalQty]) => (
+                              <div key={subMenuName} style={{display:'flex', justifyContent:'space-between', gap:'8px', fontSize:'0.82em', marginBottom:'2px'}}>
+                                <span>{subMenuName}</span>
+                                <b>{totalQty}</b>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         {/* CATATAN GLOBAL */}
                         {res.customerNotes && <div className="badge badge-yellow" style={{marginTop:'5px', display:'inline-block'}}>📝 {res.customerNotes}</div>}
                       </td>
@@ -302,6 +350,17 @@ export default function OrderList() {
                           </div>
                         ))}
                       </div>
+                      {getReservationSubMenuTotals(res).length > 0 && (
+                        <div style={{marginTop:'8px', background:'#f0fdfa', border:'1px solid #99f6e4', borderRadius:'6px', padding:'8px'}}>
+                          <div style={{fontSize:'0.82em', fontWeight:600, color:'#0f766e', marginBottom:'4px'}}>Sub menu & total</div>
+                          {getReservationSubMenuTotals(res).map(([subMenuName, totalQty]) => (
+                            <div key={subMenuName} style={{display:'flex', justifyContent:'space-between', gap:'8px', fontSize:'0.82em', marginBottom:'2px'}}>
+                              <span>{subMenuName}</span>
+                              <b>{totalQty}</b>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {/* CATATAN GLOBAL */}
                       {res.customerNotes && (
                         <div className="badge badge-yellow order-notes" style={{display:'inline-block'}}>📝 {res.customerNotes}</div>

@@ -637,6 +637,37 @@ export default function AdminDashboard() {
         return qtyNumber;
     };
 
+    const extractSubMenusFromItem = (item) => {
+        if (!item) return [];
+
+        if (Array.isArray(item.subMenus)) {
+            return item.subMenus
+                .map((subMenu) => String(subMenu || "").trim())
+                .filter(Boolean);
+        }
+
+        return String(item.selections || "")
+            .split(/\s*&\s*|\s*,\s*|\s*\|\s*/)
+            .map((text) => text.trim())
+            .filter(Boolean);
+    };
+
+    const getReservationSubMenuTotals = (reservation) => {
+        const totals = {};
+
+        (reservation?.items || []).forEach((item) => {
+            const qty = parseItemQty(item?.qty);
+            if (!qty) return;
+
+            const subMenus = extractSubMenusFromItem(item);
+            subMenus.forEach((subMenu) => {
+                totals[subMenu] = (totals[subMenu] || 0) + qty;
+            });
+        });
+
+        return Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    };
+
     const menuTotalsMap = summaryReservations.reduce((acc, reservation) => {
         (reservation.items || []).forEach((item) => {
             const itemName = String(item?.name || "").trim();
@@ -919,13 +950,60 @@ export default function AdminDashboard() {
                           </div>
                       </td>
                       <td style={{verticalAlign: 'middle'}}>
-                          {res.items?.map((i,x)=>(
-                              <div key={x} style={{fontSize:'0.9em', marginBottom:'8px', background:'#f9f9f9', padding:'5px', borderRadius:'4px'}}>
-                                  <b style={{color: '#047857'}}>{i.qty}x</b> <b>{i.name}</b><br/>
-                                  {i.selections && <span style={{color: '#666'}}>↳ {i.selections}</span>}
-                                  {i.note && <div style={{fontSize: '0.85em', color: '#d97706', fontStyle: 'italic'}}>📝 {i.note}</div>}
+                          {res.items?.map((i, x) => {
+                              const itemSubMenus = extractSubMenusFromItem(i);
+                              const itemQty = parseItemQty(i?.qty);
+                              const itemPrice = Number(i?.price) || 0;
+                              const itemSubtotal = itemQty * itemPrice;
+
+                              return (
+                                  <div key={x} style={{fontSize:'0.9em', marginBottom:'8px', background:'#f9f9f9', padding:'8px', borderRadius:'6px', border:'1px solid #edf2f7'}}>
+                                      <b style={{color: '#047857'}}>{i.qty}x</b> <b>{i.name}</b>
+
+                                      {itemSubMenus.length > 0 && (
+                                          <div style={{marginTop:'6px'}}>
+                                              <div style={{fontSize:'0.8em', color:'#64748b', marginBottom:'4px'}}>Sub Menu</div>
+                                              <div style={{display:'flex', flexWrap:'wrap', gap:'6px'}}>
+                                                  {itemSubMenus.map((subMenu, subMenuIndex) => (
+                                                      <span
+                                                          key={`${subMenu}-${subMenuIndex}`}
+                                                          style={{fontSize:'0.8em', background:'#ecfeff', color:'#0f766e', border:'1px solid #99f6e4', padding:'2px 8px', borderRadius:'999px'}}
+                                                      >
+                                                          {subMenu}
+                                                      </span>
+                                                  ))}
+                                              </div>
+                                              <div style={{marginTop:'6px', fontSize:'0.8em', color:'#0f766e'}}>
+                                                  Jumlah sub menu item: <b>{itemSubMenus.length * itemQty}</b>
+                                              </div>
+                                          </div>
+                                      )}
+
+                                      {i.note && <div style={{fontSize: '0.85em', color: '#d97706', fontStyle: 'italic', marginTop:'6px'}}>📝 {i.note}</div>}
+
+                                      <div style={{marginTop:'6px', fontSize:'0.82em', color:'#374151'}}>
+                                          Subtotal item: <b>Rp {itemSubtotal.toLocaleString()}</b>
+                                      </div>
+                                  </div>
+                              );
+                          })}
+                          <div style={{marginTop:'6px', fontSize:'0.88em', color:'#0f766e', fontWeight:600}}>
+                              Total pesanan: Rp {Number(res.totalPrice || 0).toLocaleString()}
+                          </div>
+                          <div style={{marginTop:'4px', fontSize:'0.86em', color:'#0f766e'}}>
+                              Jumlah sub menu pesanan: <b>{(res.items || []).reduce((sum, item) => sum + (extractSubMenusFromItem(item).length * parseItemQty(item?.qty)), 0)}</b>
+                          </div>
+                          {getReservationSubMenuTotals(res).length > 0 && (
+                              <div style={{marginTop:'8px', fontSize:'0.85em', color:'#334155'}}>
+                                  <div style={{fontWeight:600, marginBottom:'4px'}}>Nama sub menu & total</div>
+                                  {getReservationSubMenuTotals(res).map(([subMenuName, totalQty]) => (
+                                      <div key={subMenuName} style={{display:'flex', justifyContent:'space-between', gap:'8px', marginBottom:'2px'}}>
+                                          <span>{subMenuName}</span>
+                                          <b>{totalQty}</b>
+                                      </div>
+                                  ))}
                               </div>
-                          ))}
+                          )}
                       </td>
                       <td className="text-primary font-bold" style={{verticalAlign: 'middle', fontSize: '1.1em'}}>Rp {res.totalPrice?.toLocaleString()}</td>
                       <td style={{verticalAlign: 'middle'}}>
