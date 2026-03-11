@@ -96,6 +96,23 @@ export default function AdminDashboard() {
         return reservationDayMs < todayStartMs;
     };
 
+    const sanitizeFirestoreData = (value) => {
+        if (value === undefined) return null;
+        if (value === null) return null;
+        if (Array.isArray(value)) {
+            return value.map((item) => sanitizeFirestoreData(item));
+        }
+        if (value instanceof Date) return value;
+        if (typeof value === "object") {
+            return Object.entries(value).reduce((acc, [key, nestedValue]) => {
+                const cleaned = sanitizeFirestoreData(nestedValue);
+                if (cleaned !== undefined) acc[key] = cleaned;
+                return acc;
+            }, {});
+        }
+        return value;
+    };
+
   const fetchReservations = async () => {
     const s = await getDocs(collection(db, "reservations"));
         setReservations(s.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -178,12 +195,12 @@ export default function AdminDashboard() {
         const currentReservation = reservations.find(r => r.id === id);
         if (!currentReservation) return;
 
-        await setDoc(doc(db, "deletedReservations", id), {
+        await setDoc(doc(db, "deletedReservations", id), sanitizeFirestoreData({
             ...currentReservation,
             originalReservationId: id,
             deletedAt: new Date(),
             deletedReason: "manual"
-        }, { merge: true });
+        }), { merge: true });
 
         await deleteDoc(doc(db, "reservations", id));
 
@@ -246,11 +263,11 @@ export default function AdminDashboard() {
 
         const { deletedAt, deletedReason, originalReservationId, ...restReservationData } = deletedReservation;
 
-        await setDoc(doc(db, "reservations", id), {
+        await setDoc(doc(db, "reservations", id), sanitizeFirestoreData({
             ...restReservationData,
             date: selectedRestoreDate,
             restoredAt: new Date()
-        });
+        }));
 
         if (deletedReservation?.spotId) {
             await syncReservationLock({
@@ -279,12 +296,12 @@ export default function AdminDashboard() {
 
         try {
             for (const reservation of pastReservationList) {
-                await setDoc(doc(db, "deletedReservations", reservation.id), {
+                await setDoc(doc(db, "deletedReservations", reservation.id), sanitizeFirestoreData({
                     ...reservation,
                     originalReservationId: reservation.id,
                     deletedAt: new Date(),
                     deletedReason: "past-day-cleanup"
-                }, { merge: true });
+                }), { merge: true });
                 await deleteDoc(doc(db, "reservations", reservation.id));
                 if (reservation?.date && reservation?.spotId) {
                     await releaseReservationLockIfOwned({
