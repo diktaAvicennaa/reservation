@@ -755,6 +755,22 @@ export default function AdminDashboard() {
         };
     };
 
+    const getReservationMenuTotals = (reservation) => {
+        const totals = {};
+
+        (reservation?.items || []).forEach((item) => {
+            const itemName = String(item?.name || "").trim();
+            if (!itemName) return;
+
+            const qty = parseItemQty(item?.qty);
+            if (!qty) return;
+
+            totals[itemName] = (totals[itemName] || 0) + qty;
+        });
+
+        return Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    };
+
     const menuTotalsMap = summaryReservations.reduce((acc, reservation) => {
         (reservation.items || []).forEach((item) => {
             const itemName = String(item?.name || "").trim();
@@ -1003,6 +1019,7 @@ export default function AdminDashboard() {
                             const statusMeta = getReservationStatusMeta(res.status);
                             const reservationSubMenuTotals = getReservationSubMenuTotals(res);
                             const reservationItemSummary = getReservationItemSummary(res);
+                            const reservationMenuTotals = getReservationMenuTotals(res);
 
                             return (
                                 <div key={res.id} className="reservation-card">
@@ -1068,6 +1085,15 @@ export default function AdminDashboard() {
                                                     {reservationItemSummary.totalQty} porsi
                                                 </span>
                                             </div>
+                                            {reservationMenuTotals.length > 0 && (
+                                                <div className="reservation-submenu-summary">
+                                                    {reservationMenuTotals.slice(0, 4).map(([menuName, totalQty]) => (
+                                                        <span key={menuName} className="reservation-submenu-summary-chip">
+                                                            {menuName} x{totalQty}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                             {reservationSubMenuTotals.length > 0 && (
                                                 <div className="reservation-submenu-summary">
                                                     {reservationSubMenuTotals.slice(0, 4).map(([subMenuName, totalQty]) => (
