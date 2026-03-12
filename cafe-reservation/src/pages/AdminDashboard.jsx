@@ -537,7 +537,11 @@ export default function AdminDashboard() {
         setIsOrderMenuModalOpen(false);
         setEditingReservation(null);
         setOrderMenuItems([]);
-        fetchReservations();
+
+        // Sinkron ulang belakangan supaya UI lokal tidak ketimpa data lama sesaat.
+        setTimeout(() => {
+            fetchReservations();
+        }, 600);
     };
 
     useEffect(() => {
@@ -638,10 +642,18 @@ export default function AdminDashboard() {
         }
     }
     
-    setIsModalOpen(false); 
-    if (modalType === 'package') fetchPackages();
-    else if (modalType === 'spot') fetchSpots();
-    else fetchProducts();
+    setIsModalOpen(false);
+
+    if (modalType === 'package') {
+        fetchPackages();
+    } else if (modalType === 'spot') {
+        fetchSpots();
+    } else {
+        // Menu master: tunda sync agar tidak overwrite perubahan lokal saat Firestore belum konsisten.
+        setTimeout(() => {
+            fetchProducts();
+        }, 600);
+    }
   };
 
   const getProductNames = (ids) => {
