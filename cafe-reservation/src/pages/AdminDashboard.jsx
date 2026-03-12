@@ -896,15 +896,7 @@ export default function AdminDashboard() {
 
                         <div className="card reservation-toolbar" style={{marginBottom:'15px', padding:'12px 16px'}}>
                             <div className="reservation-toolbar-group">
-                                <label className="label" style={{margin:0}}>Urutkan</label>
-                                <select
-                                    className="select reservation-toolbar-input"
-                                    value={dateSort}
-                                    onChange={(e) => setDateSort(e.target.value)}
-                                >
-                                    <option value="newest">Tanggal terbaru</option>
-                                    <option value="oldest">Tanggal terlama</option>
-                                </select>
+                               
                             </div>
                             <div className="reservation-toolbar-group">
                                 <label className="label" style={{margin:0}}>Filter Tanggal</label>
