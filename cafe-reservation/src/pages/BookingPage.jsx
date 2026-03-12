@@ -70,16 +70,16 @@ export default function BookingPage() {
     const now = new Date();
 
     if (selectedDateTime < now) {
-      alert("Waktu sudah berlalu! Mohon pilih jadwal masa depan 😅");
+      alert("Tanggal atau Waktu salah");
       return false;
     }
 
     const isSameDay = selectedDateTime.toDateString() === now.toDateString();
     const sameDayBookingDeadline = new Date(now);
-    sameDayBookingDeadline.setHours(15, 0, 0, 0);
+    sameDayBookingDeadline.setHours(14, 0, 0, 0);
 
     if (isSameDay && now >= sameDayBookingDeadline) {
-      alert("Reservasi untuk hari ini hanya bisa dibuat sebelum jam 15:00 ya 🙏");
+      alert("Reservasi untuk hari ini hanya bisa dibuat sebelum jam 14:00 ya 🙏");
       return false;
     }
 
