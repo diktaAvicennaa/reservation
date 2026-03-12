@@ -295,24 +295,42 @@ export default function AdminDashboard() {
         if (!pastReservationList.length) return;
 
         try {
-            for (const reservation of pastReservationList) {
-                await setDoc(doc(db, "deletedReservations", reservation.id), sanitizeFirestoreData({
-                    ...reservation,
-                    originalReservationId: reservation.id,
-                    deletedAt: new Date(),
-                    deletedReason: "past-day-cleanup"
-                }), { merge: true });
-                await deleteDoc(doc(db, "reservations", reservation.id));
-                if (reservation?.date && reservation?.spotId) {
-                    await releaseReservationLockIfOwned({
-                        reservationId: reservation.id,
-                        date: reservation.date,
-                        spotId: reservation.spotId
-                    });
-                }
-            }
-            await fetchReservations();
-            await fetchDeletedReservations();
+            // Baca semua lock sekaligus agar tidak tembak banyak getDoc satu per satu
+            const lockEntries = pastReservationList
+                .filter(r => r?.date && r?.spotId)
+                .map(r => ({
+                    reservation: r,
+                    lockRef: doc(db, "reservationLocks", buildReservationLockId(r.date, r.spotId))
+                }));
+
+            const lockSnaps = lockEntries.length
+                ? await Promise.all(lockEntries.map(e => getDoc(e.lockRef)))
+                : [];
+
+            // Arsipkan dan hapus semua reservasi secara paralel
+            await Promise.all(pastReservationList.map(reservation =>
+                Promise.all([
+                    setDoc(doc(db, "deletedReservations", reservation.id), sanitizeFirestoreData({
+                        ...reservation,
+                        originalReservationId: reservation.id,
+                        deletedAt: new Date(),
+                        deletedReason: "past-day-cleanup"
+                    }), { merge: true }),
+                    deleteDoc(doc(db, "reservations", reservation.id))
+                ])
+            ));
+
+            // Lepas lock yang dimiliki oleh reservasi ini, secara paralel
+            await Promise.all(
+                lockEntries
+                    .filter((entry, i) => {
+                        const snap = lockSnaps[i];
+                        return snap?.exists() && snap.data()?.reservationId === entry.reservation.id;
+                    })
+                    .map(entry => setDoc(entry.lockRef, { status: "rejected", updatedAt: new Date() }, { merge: true }))
+            );
+
+            await Promise.all([fetchReservations(), fetchDeletedReservations()]);
             alert(`${pastReservationList.length} pesanan beda hari dipindah ke riwayat hapus.`);
         } catch (error) {
             alert("Gagal memindahkan pesanan beda hari ke riwayat hapus. Coba lagi.");
@@ -606,6 +624,29 @@ export default function AdminDashboard() {
       return ids.map(id => products.find(p => p.id === id)?.name).filter(Boolean).join(", ");
   };
 
+    const formatCurrency = (amount) => `Rp ${Number(amount || 0).toLocaleString("id-ID")}`;
+
+    const getReservationStatusMeta = (status) => {
+        if (status === "confirmed") {
+            return {
+                badgeClass: "badge-green",
+                label: "Diterima"
+            };
+        }
+
+        if (status === "rejected") {
+            return {
+                badgeClass: "badge-red",
+                label: "Ditolak"
+            };
+        }
+
+        return {
+            badgeClass: "badge-yellow",
+            label: "Menunggu"
+        };
+    };
+
     const pastReservations = reservations.filter(isReservationPastDay);
     const activeReservations = reservations.filter((reservation) => !isReservationPastDay(reservation));
 
@@ -666,6 +707,15 @@ export default function AdminDashboard() {
         });
 
         return Object.entries(totals).sort((a, b) => b[1] - a[1]);
+    };
+
+    const getReservationItemSummary = (reservation) => {
+        const items = reservation?.items || [];
+
+        return {
+            itemTypes: items.length,
+            totalQty: items.reduce((sum, item) => sum + parseItemQty(item?.qty), 0)
+        };
     };
 
     const menuTotalsMap = summaryReservations.reduce((acc, reservation) => {
@@ -844,8 +894,20 @@ export default function AdminDashboard() {
                         )}
                     </div>
 
-                        <div className="card" style={{marginBottom:'15px', padding:'12px 16px', display:'flex', justifyContent:'flex-end', alignItems:'center', gap:'10px'}}>
-                            <label className="label" style={{margin:0}}>Filter Tanggal</label>
+                        <div className="card reservation-toolbar" style={{marginBottom:'15px', padding:'12px 16px'}}>
+                            <div className="reservation-toolbar-group">
+                                <label className="label" style={{margin:0}}>Urutkan</label>
+                                <select
+                                    className="select reservation-toolbar-input"
+                                    value={dateSort}
+                                    onChange={(e) => setDateSort(e.target.value)}
+                                >
+                                    <option value="newest">Tanggal terbaru</option>
+                                    <option value="oldest">Tanggal terlama</option>
+                                </select>
+                            </div>
+                            <div className="reservation-toolbar-group">
+                                <label className="label" style={{margin:0}}>Filter Tanggal</label>
                             <input
                                 type="date"
                                 className="input"
@@ -853,11 +915,10 @@ export default function AdminDashboard() {
                                 onChange={(e) => setDateFilter(e.target.value)}
                                 style={{maxWidth:'190px', height:'45px'}}
                             />
+                            </div>
                             {dateFilter && (
                                 <button className="btn btn-ghost" onClick={() => setDateFilter("")} style={{height:'45px'}}>Reset</button>
                             )}
-
-                         
                         </div>
                     <div className="card" style={{marginBottom:'15px', padding:'14px 16px'}}>
                         <div style={{fontWeight:700, color:'#047857', marginBottom:'10px'}}>
@@ -908,133 +969,158 @@ export default function AdminDashboard() {
                             </div>
                         </div>
                     </div>
-                    <div className="card table-container">
-                        <table>
-                <thead>
-                  <tr><th>Waktu</th><th>Pelanggan</th><th>Tempat & Pax</th><th>Pesanan (Paket)</th><th>Total</th><th>Aksi</th></tr>
-                </thead>
-                <tbody>
-                                    {filteredReservations.map((res) => (
-                    <tr key={res.id}>
-                      <td style={{verticalAlign: 'middle'}}>
-                        <div style={{fontWeight:'bold', color: '#047857', fontSize: '1.1em'}}>{res.time}</div>
-                                                <input
-                                                    type="date"
-                                                    className="input"
-                                                    value={res.date || ""}
-                                                    onChange={(e) => handleUpdateReservationDate(res.id, e.target.value)}
-                                                    style={{marginTop:'6px', marginBottom:'6px', maxWidth:'170px', padding:'6px 8px', fontSize:'0.85em'}}
-                                                /><br/>
-                        <span className={`badge ${res.status==='confirmed'?'badge-green':res.status==='rejected'?'badge-red':'badge-yellow'}`} style={{marginTop:'5px', display:'inline-block'}}>
-                            {res.status === 'confirmed' ? 'Diterima' : res.status === 'rejected' ? 'Ditolak' : 'Menunggu'}
-                        </span>
-                      </td>
-                      <td style={{verticalAlign: 'middle'}}>
-                          <b>{res.customerName}</b><br/>
-                          <small style={{color: '#666'}}>{res.customerPhone}</small>
-                      </td>
-                      <td style={{verticalAlign: 'middle'}}>
-                          <select 
-                              className="select" 
-                              style={{padding: '6px', fontSize: '0.85em', fontWeight: 'bold', color: '#047857', border: '1px solid #047857', borderRadius: '6px', width: '100%', marginBottom: '5px'}}
-                              value={res.spotId || ""} 
-                              onChange={(e) => handleUpdateSpot(res.id, e.target.value)}
-                          >
-                              <option value="" disabled>-- Atur Tempat --</option>
-                              {spots.map(spot => (
-                                  <option key={spot.id} value={spot.id}>{spot.name}</option>
-                              ))}
-                          </select>
-                          <div style={{fontSize: '0.8em', color: '#666', textAlign: 'center'}}>
-                              {res.partySize ? `${res.partySize} Orang` : "Data Lama"}
-                          </div>
-                      </td>
-                      <td style={{verticalAlign: 'middle'}}>
-                          {res.items?.map((i, x) => {
-                              const itemSubMenus = extractSubMenusFromItem(i);
-                              const itemQty = parseItemQty(i?.qty);
-                              const itemPrice = Number(i?.price) || 0;
-                              const itemSubtotal = itemQty * itemPrice;
+                    <div className="reservation-list">
+                        {filteredReservations.map((res) => {
+                            const statusMeta = getReservationStatusMeta(res.status);
+                            const reservationSubMenuTotals = getReservationSubMenuTotals(res);
+                            const reservationItemSummary = getReservationItemSummary(res);
 
-                              return (
-                                  <div key={x} style={{fontSize:'0.9em', marginBottom:'8px', background:'#f9f9f9', padding:'8px', borderRadius:'6px', border:'1px solid #edf2f7'}}>
-                                      <b style={{color: '#047857'}}>{i.qty}x</b> <b>{i.name}</b>
+                            return (
+                                <div key={res.id} className="reservation-card">
+                                    <div className="reservation-card-header">
+                                        <div className="reservation-card-title-wrap">
+                                            <div className="reservation-card-time">{res.time || "-"}</div>
+                                            <div className="reservation-card-customer">{res.customerName || "Tanpa Nama"}</div>
+                                            <div className="reservation-card-phone">{res.customerPhone || "-"}</div>
+                                        </div>
 
-                                      {itemSubMenus.length > 0 && (
-                                          <div style={{marginTop:'6px'}}>
-                                              <div style={{fontSize:'0.8em', color:'#64748b', marginBottom:'4px'}}>Sub Menu</div>
-                                              <div style={{display:'flex', flexWrap:'wrap', gap:'6px'}}>
-                                                  {itemSubMenus.map((subMenu, subMenuIndex) => (
-                                                      <span
-                                                          key={`${subMenu}-${subMenuIndex}`}
-                                                          style={{fontSize:'0.8em', background:'#ecfeff', color:'#0f766e', border:'1px solid #99f6e4', padding:'2px 8px', borderRadius:'999px'}}
-                                                      >
-                                                          {subMenu}
-                                                      </span>
-                                                  ))}
-                                              </div>
-                                              <div style={{marginTop:'6px', fontSize:'0.8em', color:'#0f766e'}}>
-                                                  Jumlah sub menu item: <b>{itemSubMenus.length * itemQty}</b>
-                                              </div>
-                                          </div>
-                                      )}
+                                        <div className="reservation-card-summary">
+                                            <span className={`badge ${statusMeta.badgeClass}`}>{statusMeta.label}</span>
+                                            <div className="reservation-card-total-label">Total</div>
+                                            <div className="reservation-card-total">{formatCurrency(res.totalPrice)}</div>
+                                        </div>
+                                    </div>
 
-                                      {i.note && <div style={{fontSize: '0.85em', color: '#d97706', fontStyle: 'italic', marginTop:'6px'}}>📝 {i.note}</div>}
+                                    <div className="reservation-card-meta">
+                                        <div className="reservation-meta-box reservation-meta-box-accent">
+                                            <div className="reservation-meta-label">Tanggal Reservasi</div>
+                                            <input
+                                                type="date"
+                                                className="input reservation-date-input"
+                                                value={res.date || ""}
+                                                onChange={(e) => handleUpdateReservationDate(res.id, e.target.value)}
+                                            />
+                                            <div className="reservation-meta-stats">
+                                                <span className="reservation-meta-stat-chip">Jam {res.time || "-"}</span>
+                                            </div>
+                                        </div>
 
-                                      <div style={{marginTop:'6px', fontSize:'0.82em', color:'#374151'}}>
-                                          Subtotal item: <b>Rp {itemSubtotal.toLocaleString()}</b>
-                                      </div>
-                                  </div>
-                              );
-                          })}
-                          <div style={{marginTop:'6px', fontSize:'0.88em', color:'#0f766e', fontWeight:600}}>
-                              Total pesanan: Rp {Number(res.totalPrice || 0).toLocaleString()}
-                          </div>
-                          <div style={{marginTop:'4px', fontSize:'0.86em', color:'#0f766e'}}>
-                              Jumlah sub menu pesanan: <b>{(res.items || []).reduce((sum, item) => sum + (extractSubMenusFromItem(item).length * parseItemQty(item?.qty)), 0)}</b>
-                          </div>
-                          {getReservationSubMenuTotals(res).length > 0 && (
-                              <div style={{marginTop:'8px', fontSize:'0.85em', color:'#334155'}}>
-                                  <div style={{fontWeight:600, marginBottom:'4px'}}>Nama sub menu & total</div>
-                                  {getReservationSubMenuTotals(res).map(([subMenuName, totalQty]) => (
-                                      <div key={subMenuName} style={{display:'flex', justifyContent:'space-between', gap:'8px', marginBottom:'2px'}}>
-                                          <span>{subMenuName}</span>
-                                          <b>{totalQty}</b>
-                                      </div>
-                                  ))}
-                              </div>
-                          )}
-                      </td>
-                      <td className="text-primary font-bold" style={{verticalAlign: 'middle', fontSize: '1.1em'}}>Rp {res.totalPrice?.toLocaleString()}</td>
-                      <td style={{verticalAlign: 'middle'}}>
-                          {res.status === 'pending' ? (
-                              <div className="flex flex-col gap-2">
-                                  <button onClick={()=>handleStatus(res.id,'confirmed')} className="btn btn-primary" style={{padding:'8px', width:'100%'}}>✔ Terima</button>
-                                  <button onClick={()=>handleStatus(res.id,'rejected')} className="btn btn-danger" style={{padding:'8px', width:'100%'}}>✖ Tolak</button>
-                                  <button onClick={()=>handleOpenOrderMenuModal(res)} className="btn btn-ghost" style={{padding:'8px', width:'100%', border:'1px solid #047857', color:'#047857'}}>✏️ Edit Menu</button>
-                              </div>
-                          ) : (
-                              <div className="text-center">
-                                 <div style={{fontSize:'0.8em', color:'#aaa', marginBottom:'5px'}}>Selesai</div>
-                                 <button onClick={()=>handleOpenOrderMenuModal(res)} className="btn btn-ghost" style={{width:'100%', padding:'8px', marginBottom:'6px', border:'1px solid #047857', color:'#047857'}}>✏️ Edit Menu</button>
-                                 <button onClick={()=>handleDeleteReservation(res.id)} className="btn btn-ghost" style={{color:'red', width:'100%', padding:'8px'}}>🗑 Hapus</button>
-                              </div>
-                          )}
-                      </td>
-                    </tr>
-                  ))}
-                                    {filteredReservations.length === 0 && (
-                                        <tr>
-                                            <td colSpan="6" style={{textAlign:'center', color:'#777', padding:'20px'}}>
-                                                {dateFilter
-                                                    ? "Tidak ada pesanan untuk tanggal yang dipilih."
-                                                    : "Belum ada pesanan aktif untuk hari ini atau setelahnya."}
-                                            </td>
-                                        </tr>
-                                    )}
-                </tbody>
-            </table>
-          </div>
+                                        <div className="reservation-meta-box">
+                                            <div className="reservation-meta-label">Tempat & Pax</div>
+                                            <select
+                                                className="select reservation-spot-select"
+                                                value={res.spotId || ""}
+                                                onChange={(e) => handleUpdateSpot(res.id, e.target.value)}
+                                            >
+                                                <option value="" disabled>-- Atur Tempat --</option>
+                                                {spots.map((spot) => (
+                                                    <option key={spot.id} value={spot.id}>{spot.name}</option>
+                                                ))}
+                                            </select>
+                                            <div className="reservation-meta-stats">
+                                                <span className="reservation-meta-stat-chip">
+                                                    {res.partySize ? `${res.partySize} Orang` : "Data Lama"}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="reservation-meta-box">
+                                            <div className="reservation-meta-label">Ringkasan Item</div>
+                                            <div className="reservation-meta-note">
+                                                {reservationItemSummary.itemTypes > 0
+                                                    ? `${reservationItemSummary.itemTypes} jenis menu`
+                                                    : "Belum ada item"}
+                                            </div>
+                                            <div className="reservation-meta-stats">
+                                                <span className="reservation-meta-stat-chip">
+                                                    {reservationItemSummary.itemTypes} jenis
+                                                </span>
+                                                <span className="reservation-meta-stat-chip">
+                                                    {reservationItemSummary.totalQty} porsi
+                                                </span>
+                                            </div>
+                                            {reservationSubMenuTotals.length > 0 && (
+                                                <div className="reservation-submenu-summary">
+                                                    {reservationSubMenuTotals.slice(0, 4).map(([subMenuName, totalQty]) => (
+                                                        <span key={subMenuName} className="reservation-submenu-summary-chip">
+                                                            {subMenuName} x{totalQty}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <div className="reservation-items-panel">
+                                        <div className="reservation-section-title">Detail Pesanan</div>
+                                        {(res.items || []).length > 0 ? (
+                                            <div className="reservation-items-grid">
+                                                {(res.items || []).map((item, index) => {
+                                                    const itemSubMenus = extractSubMenusFromItem(item);
+                                                    const itemQty = parseItemQty(item?.qty);
+                                                    const itemPrice = Number(item?.price) || 0;
+                                                    const itemSubtotal = itemQty * itemPrice;
+
+                                                    return (
+                                                        <div key={index} className="reservation-item-card">
+                                                            <div className="reservation-item-head">
+                                                                <div>
+                                                                    <div className="reservation-item-name">
+                                                                        <span className="reservation-item-qty">{item.qty}x</span> {item.name}
+                                                                    </div>
+                                                                    <div className="reservation-item-price">{formatCurrency(itemPrice)} / item</div>
+                                                                </div>
+                                                                <div className="reservation-item-subtotal">{formatCurrency(itemSubtotal)}</div>
+                                                            </div>
+
+                                                            {itemSubMenus.length > 0 && (
+                                                                <div className="reservation-item-submenus">
+                                                                    {itemSubMenus.map((subMenu, subMenuIndex) => (
+                                                                        <span key={`${subMenu}-${subMenuIndex}`} className="reservation-submenu-chip">
+                                                                            {subMenu}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+
+                                                            {item.note && (
+                                                                <div className="reservation-item-note">📝 {item.note}</div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <div className="reservation-empty-items">Belum ada item pesanan.</div>
+                                        )}
+                                    </div>
+
+                                    <div className="reservation-actions">
+                                        {res.status === 'pending' ? (
+                                            <>
+                                                <button onClick={() => handleStatus(res.id, 'confirmed')} className="btn btn-primary reservation-action-btn">✔ Terima</button>
+                                                <button onClick={() => handleStatus(res.id, 'rejected')} className="btn btn-danger reservation-action-btn">✖ Tolak</button>
+                                                <button onClick={() => handleOpenOrderMenuModal(res)} className="btn btn-ghost reservation-action-btn reservation-action-outline">✏️ Edit Menu</button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <button onClick={() => handleOpenOrderMenuModal(res)} className="btn btn-ghost reservation-action-btn reservation-action-outline">✏️ Edit Menu</button>
+                                                <button onClick={() => handleDeleteReservation(res.id)} className="btn btn-ghost reservation-action-btn reservation-action-danger">🗑 Hapus</button>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {filteredReservations.length === 0 && (
+                            <div className="card" style={{textAlign:'center', color:'#777', padding:'24px'}}>
+                                {dateFilter
+                                    ? "Tidak ada pesanan untuk tanggal yang dipilih."
+                                    : "Belum ada pesanan aktif untuk hari ini atau setelahnya."}
+                            </div>
+                        )}
+                    </div>
                     </>
         )}
 

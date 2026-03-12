@@ -32,13 +32,13 @@ export default function BookingPage() {
   // Ambil semua data Master dari Firestore
   useEffect(() => {
       const fetchData = async () => {
-          const pkgSnap = await getDocs(query(collection(db, "packages"), where("isAvailable", "==", true)));
+          const [pkgSnap, prodSnap, spotSnap] = await Promise.all([
+              getDocs(query(collection(db, "packages"), where("isAvailable", "==", true))),
+              getDocs(query(collection(db, "products"), where("isAvailable", "==", true))),
+              getDocs(query(collection(db, "spots"), where("isAvailable", "==", true)))
+          ]);
           setPackages(pkgSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-          
-          const prodSnap = await getDocs(query(collection(db, "products"), where("isAvailable", "==", true)));
           setProducts(prodSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-
-          const spotSnap = await getDocs(query(collection(db, "spots"), where("isAvailable", "==", true)));
           setSpots(spotSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       };
       fetchData();
@@ -76,10 +76,10 @@ export default function BookingPage() {
 
     const isSameDay = selectedDateTime.toDateString() === now.toDateString();
     const sameDayBookingDeadline = new Date(now);
-    sameDayBookingDeadline.setHours(14, 0, 0, 0);
+    sameDayBookingDeadline.setHours(15, 0, 0, 0);
 
     if (isSameDay && now >= sameDayBookingDeadline) {
-      alert("Reservasi untuk hari ini hanya bisa dibuat sebelum jam 14:00 ya 🙏");
+      alert("Reservasi untuk hari ini hanya bisa dibuat sebelum jam 15:00 ya 🙏");
       return false;
     }
 
