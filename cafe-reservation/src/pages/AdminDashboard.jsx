@@ -518,11 +518,21 @@ export default function AdminDashboard() {
         }
 
         const newTotalPrice = normalizedItems.reduce((sum, item) => sum + item.subtotal, 0);
-
-        await updateDoc(doc(db, "reservations", editingReservation.id), {
+        const updatedReservationData = {
             items: normalizedItems,
             totalPrice: newTotalPrice
-        });
+        };
+
+        await updateDoc(doc(db, "reservations", editingReservation.id), updatedReservationData);
+
+        // Update UI segera agar ringkasan item ikut berubah tanpa menunggu fetch ulang.
+        setReservations((prev) =>
+            prev.map((reservation) =>
+                reservation.id === editingReservation.id
+                    ? { ...reservation, ...updatedReservationData }
+                    : reservation
+            )
+        );
 
         setIsOrderMenuModalOpen(false);
         setEditingReservation(null);
@@ -610,8 +620,23 @@ export default function AdminDashboard() {
         }
     }
 
-    if (editingItem) await updateDoc(doc(db, collectionName, editingItem.id), payload);
-    else await addDoc(collection(db, collectionName), payload);
+    if (editingItem) {
+        await updateDoc(doc(db, collectionName, editingItem.id), payload);
+
+        if (modalType === 'menu') {
+            setProducts((prev) =>
+                prev.map((product) =>
+                    product.id === editingItem.id ? { ...product, ...payload } : product
+                )
+            );
+        }
+    } else {
+        const newDocRef = await addDoc(collection(db, collectionName), payload);
+
+        if (modalType === 'menu') {
+            setProducts((prev) => [{ id: newDocRef.id, ...payload }, ...prev]);
+        }
+    }
     
     setIsModalOpen(false); 
     if (modalType === 'package') fetchPackages();
