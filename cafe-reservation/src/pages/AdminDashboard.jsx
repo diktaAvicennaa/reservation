@@ -967,23 +967,20 @@ export default function AdminDashboard() {
                         )}
                     </div>
 
-                        <div className="card reservation-toolbar" style={{marginBottom:'15px', padding:'12px 16px'}}>
-                            <div className="reservation-toolbar-group">
-                               
+                        <div className="card sort-card" style={{marginBottom:'15px'}}>
+                            <label className="label sort-label">Filter Tanggal</label>
+                            <div style={{display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap'}}>
+                                <input
+                                    type="date"
+                                    className="input sort-select"
+                                    value={dateFilter}
+                                    onChange={(e) => setDateFilter(e.target.value)}
+                                    style={{maxWidth:'220px'}}
+                                />
+                                {dateFilter && (
+                                    <button className="btn btn-ghost" onClick={() => setDateFilter("")}>Reset</button>
+                                )}
                             </div>
-                            <div className="reservation-toolbar-group">
-                                <label className="label" style={{margin:0}}>Filter Tanggal</label>
-                            <input
-                                type="date"
-                                className="input"
-                                value={dateFilter}
-                                onChange={(e) => setDateFilter(e.target.value)}
-                                style={{maxWidth:'190px', height:'45px'}}
-                            />
-                            </div>
-                            {dateFilter && (
-                                <button className="btn btn-ghost" onClick={() => setDateFilter("")} style={{height:'45px'}}>Reset</button>
-                            )}
                         </div>
                     <div className="card" style={{marginBottom:'15px', padding:'14px 16px'}}>
                         <div style={{fontWeight:700, color:'#047857', marginBottom:'10px'}}>

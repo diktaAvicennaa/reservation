@@ -6,7 +6,7 @@ import { useNavigate } from "react-router-dom";
 export default function OrderList() {
   const navigate = useNavigate();
   const [reservations, setReservations] = useState([]);
-  const [dateSort, setDateSort] = useState("newest");
+  const [dateFilter, setDateFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [products, setProducts] = useState([]);
@@ -169,12 +169,65 @@ export default function OrderList() {
     return Object.entries(totals).sort((a, b) => b[1] - a[1]);
   };
 
+  const getReservationMenuTotals = (reservation) => {
+    const totals = {};
+
+    (reservation?.items || []).forEach((item) => {
+      const itemName = String(item?.name || "").trim();
+      if (!itemName) return;
+
+      const qty = parseItemQty(item?.qty);
+      if (!qty) return;
+
+      totals[itemName] = (totals[itemName] || 0) + qty;
+    });
+
+    return Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  };
+
+  const productCategoryByName = products.reduce((acc, product) => {
+    const productName = String(product?.name || "").trim().toLowerCase();
+    if (!productName) return acc;
+    acc[productName] = String(product?.category || "").trim().toLowerCase();
+    return acc;
+  }, {});
+
+  const getReservationOptionalTotalsByCategory = (reservation) => {
+    const reservationSubMenuTotals = getReservationSubMenuTotals(reservation);
+    const foodSubMenuTotals = [];
+    const drinkSubMenuTotals = [];
+
+    reservationSubMenuTotals.forEach(([subMenuName, qty], index) => {
+      const normalizedName = String(subMenuName || "").trim().toLowerCase();
+      const category = productCategoryByName[normalizedName] || "";
+
+      if (category === "coffee" || category === "non-coffee" || category === "non-coffe") {
+        drinkSubMenuTotals.push([subMenuName, qty]);
+        return;
+      }
+
+      if (category === "food" || category === "snack") {
+        foodSubMenuTotals.push([subMenuName, qty]);
+        return;
+      }
+
+      if (reservationSubMenuTotals.length === 2 && index === 1) {
+        drinkSubMenuTotals.push([subMenuName, qty]);
+        return;
+      }
+
+      foodSubMenuTotals.push([subMenuName, qty]);
+    });
+
+    return { foodSubMenuTotals, drinkSubMenuTotals };
+  };
+
   const visibleReservations = reservations.filter((reservation) => !isReservationPastDay(reservation));
 
   const sortedReservations = [...visibleReservations].sort((a, b) => {
     const aTs = getReservationTimestamp(a);
     const bTs = getReservationTimestamp(b);
-    const primaryDiff = dateSort === "oldest" ? aTs - bTs : bTs - aTs;
+    const primaryDiff = bTs - aTs;
     if (primaryDiff !== 0) return primaryDiff;
 
     const aCreatedAtMs = a?.createdAt?.toMillis?.() || 0;
@@ -184,6 +237,10 @@ export default function OrderList() {
 
     return String(a?.id || "").localeCompare(String(b?.id || ""));
   });
+
+  const filteredReservations = dateFilter
+    ? sortedReservations.filter((reservation) => reservation.date === dateFilter)
+    : sortedReservations;
 
   return (
     <div className="admin-container">
@@ -212,12 +269,20 @@ export default function OrderList() {
         {/* DAFTAR PESANAN READ-ONLY */}
         {!loading && !error && (
           <>
-            <div className="card sort-card">
-              <label className="label sort-label">Urutkan Berdasarkan</label>
-              <select className="input sort-select" value={dateSort} onChange={(e) => setDateSort(e.target.value)}>
-                <option value="newest">Tanggal terjauh</option>
-                <option value="oldest">Tanggal terdekat</option>
-              </select>
+            <div className="card sort-card" style={{marginBottom:'15px'}}>
+              <label className="label sort-label">Filter Tanggal</label>
+              <div style={{display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap'}}>
+                <input
+                  type="date"
+                  className="input sort-select"
+                  value={dateFilter}
+                  onChange={(e) => setDateFilter(e.target.value)}
+                  style={{maxWidth:'220px'}}
+                />
+                {dateFilter && (
+                  <button className="btn btn-ghost" onClick={() => setDateFilter("")}>Reset</button>
+                )}
+              </div>
             </div>
 
           <div className="table-container">
@@ -234,7 +299,11 @@ export default function OrderList() {
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedReservations.map((res) => (
+                  {filteredReservations.map((res) => {
+                    const reservationMenuTotals = getReservationMenuTotals(res);
+                    const { foodSubMenuTotals, drinkSubMenuTotals } = getReservationOptionalTotalsByCategory(res);
+
+                    return (
                     <tr key={res.id}>
                       <td className="force-nowrap" style={{verticalAlign: 'top'}}>
                         <div style={{fontWeight:'bold', color: '#047857'}}>{res.time}</div>
@@ -270,17 +339,45 @@ export default function OrderList() {
                             )}
                           </div>
                         ))}
-                        {getReservationSubMenuTotals(res).length > 0 && (
-                          <div style={{marginTop:'6px', background:'#f0fdfa', border:'1px solid #99f6e4', borderRadius:'6px', padding:'8px'}}>
-                            <div style={{fontSize:'0.82em', fontWeight:600, color:'#0f766e', marginBottom:'4px'}}>Sub menu & total</div>
-                            {getReservationSubMenuTotals(res).map(([subMenuName, totalQty]) => (
-                              <div key={subMenuName} style={{display:'flex', justifyContent:'space-between', gap:'8px', fontSize:'0.82em', marginBottom:'2px'}}>
-                                <span>{subMenuName}</span>
+                        <div style={{marginTop:'6px', background:'#f0fdfa', border:'1px solid #99f6e4', borderRadius:'6px', padding:'8px'}}>
+                          <div style={{fontSize:'0.82em', fontWeight:600, color:'#0f766e', marginBottom:'6px'}}>Ringkasan menu </div>
+
+                          <div style={{fontSize:'0.78em', fontWeight:600, color:'#374151', marginBottom:'3px'}}>Menu utama</div>
+                          {reservationMenuTotals.length > 0 ? (
+                            reservationMenuTotals.map(([menuName, totalQty]) => (
+                              <div key={`main-${menuName}`} style={{display:'flex', justifyContent:'flex-start', gap:'6px', fontSize:'0.82em', marginBottom:'2px'}}>
+                                <span>{menuName}</span>
                                 <b>{totalQty}</b>
                               </div>
-                            ))}
-                          </div>
-                        )}
+                            ))
+                          ) : (
+                            <div style={{fontSize:'0.82em', color:'#6b7280', marginBottom:'4px'}}>Belum ada menu utama.</div>
+                          )}
+
+                          <div style={{fontSize:'0.78em', fontWeight:600, color:'#b45309', marginTop:'6px', marginBottom:'3px'}}> makanan</div>
+                          {foodSubMenuTotals.length > 0 ? (
+                            foodSubMenuTotals.map(([menuName, totalQty]) => (
+                              <div key={`food-${menuName}`} style={{display:'flex', justifyContent:'flex-start', gap:'6px', fontSize:'0.82em', marginBottom:'2px'}}>
+                                <span>{menuName}</span>
+                                <b>{totalQty}</b>
+                              </div>
+                            ))
+                          ) : (
+                            <div style={{fontSize:'0.82em', color:'#6b7280', marginBottom:'4px'}}>Tidak ada  makanan.</div>
+                          )}
+
+                          <div style={{fontSize:'0.78em', fontWeight:600, color:'#0369a1', marginTop:'6px', marginBottom:'3px'}}>minuman</div>
+                          {drinkSubMenuTotals.length > 0 ? (
+                            drinkSubMenuTotals.map(([menuName, totalQty]) => (
+                              <div key={`drink-${menuName}`} style={{display:'flex', justifyContent:'flex-start', gap:'6px', fontSize:'0.82em', marginBottom:'2px'}}>
+                                <span>{menuName}</span>
+                                <b>{totalQty}</b>
+                              </div>
+                            ))
+                          ) : (
+                            <div style={{fontSize:'0.82em', color:'#6b7280'}}>Tidak ada  minuman.</div>
+                          )}
+                        </div>
                         {/* CATATAN GLOBAL */}
                         {res.customerNotes && <div className="badge badge-yellow" style={{marginTop:'5px', display:'inline-block'}}>📝 {res.customerNotes}</div>}
                       </td>
@@ -291,13 +388,18 @@ export default function OrderList() {
                         </span>
                       </td>
                     </tr>
-                  ))}
+                  );
+                  })}
                 </tbody>
               </table>
             </div>
 
             <div className="order-list-mobile">
-              {sortedReservations.map((res) => (
+              {filteredReservations.map((res) => {
+                const reservationMenuTotals = getReservationMenuTotals(res);
+                const { foodSubMenuTotals, drinkSubMenuTotals } = getReservationOptionalTotalsByCategory(res);
+
+                return (
                 <div className="order-card" key={res.id}>
                   <div className="order-card-header">
                     <div>
@@ -350,17 +452,45 @@ export default function OrderList() {
                           </div>
                         ))}
                       </div>
-                      {getReservationSubMenuTotals(res).length > 0 && (
-                        <div style={{marginTop:'8px', background:'#f0fdfa', border:'1px solid #99f6e4', borderRadius:'6px', padding:'8px'}}>
-                          <div style={{fontSize:'0.82em', fontWeight:600, color:'#0f766e', marginBottom:'4px'}}>Sub menu & total</div>
-                          {getReservationSubMenuTotals(res).map(([subMenuName, totalQty]) => (
-                            <div key={subMenuName} style={{display:'flex', justifyContent:'space-between', gap:'8px', fontSize:'0.82em', marginBottom:'2px'}}>
-                              <span>{subMenuName}</span>
+                      <div style={{marginTop:'8px', background:'#f0fdfa', border:'1px solid #99f6e4', borderRadius:'6px', padding:'8px'}}>
+                        <div style={{fontSize:'0.82em', fontWeight:600, color:'#0f766e', marginBottom:'6px'}}>Ringkasan menu pesanan ini</div>
+
+                        <div style={{fontSize:'0.78em', fontWeight:600, color:'#374151', marginBottom:'3px'}}>Menu utama</div>
+                        {reservationMenuTotals.length > 0 ? (
+                          reservationMenuTotals.map(([menuName, totalQty]) => (
+                            <div key={`m-main-${menuName}`} style={{display:'flex', justifyContent:'flex-start', gap:'6px', fontSize:'0.82em', marginBottom:'2px'}}>
+                              <span>{menuName}</span>
                               <b>{totalQty}</b>
                             </div>
-                          ))}
-                        </div>
-                      )}
+                          ))
+                        ) : (
+                          <div style={{fontSize:'0.82em', color:'#6b7280', marginBottom:'4px'}}>Belum ada menu utama.</div>
+                        )}
+
+                        <div style={{fontSize:'0.78em', fontWeight:600, color:'#b45309', marginTop:'6px', marginBottom:'3px'}}>Opsional makanan</div>
+                        {foodSubMenuTotals.length > 0 ? (
+                          foodSubMenuTotals.map(([menuName, totalQty]) => (
+                            <div key={`m-food-${menuName}`} style={{display:'flex', justifyContent:'flex-start', gap:'6px', fontSize:'0.82em', marginBottom:'2px'}}>
+                              <span>{menuName}</span>
+                              <b>{totalQty}</b>
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{fontSize:'0.82em', color:'#6b7280', marginBottom:'4px'}}>Tidak ada opsional makanan.</div>
+                        )}
+
+                        <div style={{fontSize:'0.78em', fontWeight:600, color:'#0369a1', marginTop:'6px', marginBottom:'3px'}}>Opsional minuman</div>
+                        {drinkSubMenuTotals.length > 0 ? (
+                          drinkSubMenuTotals.map(([menuName, totalQty]) => (
+                            <div key={`m-drink-${menuName}`} style={{display:'flex', justifyContent:'flex-start', gap:'6px', fontSize:'0.82em', marginBottom:'2px'}}>
+                              <span>{menuName}</span>
+                              <b>{totalQty}</b>
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{fontSize:'0.82em', color:'#6b7280'}}>Tidak ada opsional minuman.</div>
+                        )}
+                      </div>
                       {/* CATATAN GLOBAL */}
                       {res.customerNotes && (
                         <div className="badge badge-yellow order-notes" style={{display:'inline-block'}}>📝 {res.customerNotes}</div>
@@ -372,10 +502,17 @@ export default function OrderList() {
                     <div className="order-total" style={{color: '#047857'}}>Rp {res.totalPrice?.toLocaleString()}</div>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
 
-            {sortedReservations.length === 0 && <div className="empty-state">Belum ada pesanan masuk.</div>}
+            {filteredReservations.length === 0 && (
+              <div className="empty-state">
+                {dateFilter
+                  ? "Tidak ada pesanan untuk tanggal yang dipilih."
+                  : "Belum ada pesanan masuk."}
+              </div>
+            )}
           </div>
           </>
         )}
