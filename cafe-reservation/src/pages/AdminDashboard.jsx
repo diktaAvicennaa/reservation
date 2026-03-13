@@ -27,11 +27,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => { if (!user) navigate("/admin"); });
-    fetchReservations();
-    fetchDeletedReservations();
-    fetchPackages();
-    fetchProducts();
-    fetchSpots();
+    fetchAllData();
     return () => unsubscribe();
   }, []);
 
@@ -113,25 +109,28 @@ export default function AdminDashboard() {
         return value;
     };
 
+  const fetchAllData = async () => {
+    const [resSnap, delSnap, pkgSnap, prodSnap, spotSnap] = await Promise.all([
+      getDocs(collection(db, "reservations")),
+      getDocs(collection(db, "deletedReservations")),
+      getDocs(collection(db, "packages")),
+      getDocs(collection(db, "products")),
+      getDocs(collection(db, "spots")),
+    ]);
+    setReservations(resSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setDeletedReservations(delSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setPackages(pkgSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setProducts(prodSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    setSpots(spotSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+  };
+
   const fetchReservations = async () => {
     const s = await getDocs(collection(db, "reservations"));
-        setReservations(s.docs.map(d => ({ id: d.id, ...d.data() })));
+    setReservations(s.docs.map(d => ({ id: d.id, ...d.data() })));
   };
-    const fetchDeletedReservations = async () => {
-        const s = await getDocs(collection(db, "deletedReservations"));
-        setDeletedReservations(s.docs.map(d => ({ id: d.id, ...d.data() })));
-    };
-  const fetchPackages = async () => {
-    const s = await getDocs(collection(db, "packages"));
-    setPackages(s.docs.map(d => ({ id: d.id, ...d.data() })));
-  };
-  const fetchProducts = async () => {
-    const s = await getDocs(collection(db, "products"));
-    setProducts(s.docs.map(d => ({ id: d.id, ...d.data() })));
-  };
-  const fetchSpots = async () => {
-    const s = await getDocs(collection(db, "spots"));
-    setSpots(s.docs.map(d => ({ id: d.id, ...d.data() })));
+  const fetchDeletedReservations = async () => {
+    const s = await getDocs(collection(db, "deletedReservations"));
+    setDeletedReservations(s.docs.map(d => ({ id: d.id, ...d.data() })));
   };
 
     const buildReservationLockId = (reservationDate, spotId) => `${reservationDate}__${spotId}`;
@@ -188,7 +187,7 @@ export default function AdminDashboard() {
             }
         }
 
-        fetchReservations();
+        setReservations(prev => prev.map(r => r.id === id ? { ...r, status } : r));
     };
     const handleDeleteReservation = async (id) => {
         if(!confirm("Pindahkan pesanan ini ke riwayat hapus?")) return;
@@ -212,8 +211,8 @@ export default function AdminDashboard() {
             });
         }
 
-        fetchReservations();
-        fetchDeletedReservations();
+        setReservations(prev => prev.filter(r => r.id !== id));
+        setDeletedReservations(prev => [{ id, ...currentReservation, originalReservationId: id, deletedAt: new Date(), deletedReason: "manual" }, ...prev]);
     };
 
     const hasReservationConflict = async ({ reservationId, date, time, spotId }) => {
@@ -236,7 +235,7 @@ export default function AdminDashboard() {
     const handlePermanentDeleteFromTrash = async (id) => {
         if (!confirm("Hapus permanen dari riwayat hapus? Tindakan ini tidak bisa dibatalkan.")) return;
         await deleteDoc(doc(db, "deletedReservations", id));
-        fetchDeletedReservations();
+        setDeletedReservations(prev => prev.filter(r => r.id !== id));
     };
 
     const handleRestoreDeletedReservation = async (id) => {
@@ -287,8 +286,9 @@ export default function AdminDashboard() {
             return next;
         });
 
-        fetchReservations();
-        fetchDeletedReservations();
+        const restoredEntry = { id, ...restReservationData, date: selectedRestoreDate, restoredAt: new Date() };
+        setDeletedReservations(prev => prev.filter(r => r.id !== id));
+        setReservations(prev => [restoredEntry, ...prev]);
     };
 
     const handleCleanupPastReservations = async (pastReservationList = []) => {
@@ -330,7 +330,13 @@ export default function AdminDashboard() {
                     .map(entry => setDoc(entry.lockRef, { status: "rejected", updatedAt: new Date() }, { merge: true }))
             );
 
-            await Promise.all([fetchReservations(), fetchDeletedReservations()]);
+            const cleanedIds = new Set(pastReservationList.map(r => r.id));
+            const cleanupNow = new Date();
+            setReservations(prev => prev.filter(r => !cleanedIds.has(r.id)));
+            setDeletedReservations(prev => [
+                ...pastReservationList.map(r => ({ ...r, originalReservationId: r.id, deletedAt: cleanupNow, deletedReason: "past-day-cleanup" })),
+                ...prev
+            ]);
             alert(`${pastReservationList.length} pesanan beda hari dipindah ke riwayat hapus.`);
         } catch (error) {
             alert("Gagal memindahkan pesanan beda hari ke riwayat hapus. Coba lagi.");
@@ -382,7 +388,7 @@ export default function AdminDashboard() {
             });
         }
 
-        fetchReservations();
+        setReservations(prev => prev.map(r => r.id === id ? { ...r, date: newDate } : r));
     };
   
   const handleUpdateSpot = async (id, spotId) => {
@@ -406,7 +412,7 @@ export default function AdminDashboard() {
                 status: currentReservation.status
             });
 
-            fetchReservations();
+            setReservations(prev => prev.map(r => r.id === id ? { ...r, spotId: spot.id, spotName: spot.name } : r));
             return;
         }
 
@@ -443,7 +449,7 @@ export default function AdminDashboard() {
             status: currentReservation.status
         });
 
-        fetchReservations();
+        setReservations(prev => prev.map(r => r.id === id ? { ...r, spotId: spot.id, spotName: spot.name } : r));
     }
   };
 
