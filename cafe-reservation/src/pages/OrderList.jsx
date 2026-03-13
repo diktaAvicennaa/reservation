@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { db } from "../firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, query, limit } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 export default function OrderList() {
@@ -84,7 +84,7 @@ export default function OrderList() {
   const fetchReservations = async () => {
     try {
       setLoading(true);
-      const s = await getDocs(collection(db, "reservations"));
+      const s = await getDocs(query(collection(db, "reservations"), limit(200)));
       const data = s.docs.map(d => ({ id: d.id, ...d.data() }));
       setReservations(data);
       console.log("Data pesanan:", data);

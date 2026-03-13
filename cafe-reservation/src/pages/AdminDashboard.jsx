@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { db, auth } from "../firebase";
-import { collection, getDocs, updateDoc, doc, deleteDoc, addDoc, deleteField, query, where, setDoc, getDoc } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, deleteDoc, addDoc, deleteField, query, where, setDoc, getDoc, limit } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 export default function AdminDashboard() {
@@ -111,8 +111,8 @@ export default function AdminDashboard() {
 
   const fetchAllData = async () => {
     const [resSnap, delSnap, pkgSnap, prodSnap, spotSnap] = await Promise.all([
-      getDocs(collection(db, "reservations")),
-      getDocs(collection(db, "deletedReservations")),
+      getDocs(query(collection(db, "reservations"), limit(200))),
+      getDocs(query(collection(db, "deletedReservations"), limit(50))),
       getDocs(collection(db, "packages")),
       getDocs(collection(db, "products")),
       getDocs(collection(db, "spots")),
@@ -125,11 +125,11 @@ export default function AdminDashboard() {
   };
 
   const fetchReservations = async () => {
-    const s = await getDocs(collection(db, "reservations"));
+    const s = await getDocs(query(collection(db, "reservations"), limit(200)));
     setReservations(s.docs.map(d => ({ id: d.id, ...d.data() })));
   };
   const fetchDeletedReservations = async () => {
-    const s = await getDocs(collection(db, "deletedReservations"));
+    const s = await getDocs(query(collection(db, "deletedReservations"), limit(50)));
     setDeletedReservations(s.docs.map(d => ({ id: d.id, ...d.data() })));
   };
 
