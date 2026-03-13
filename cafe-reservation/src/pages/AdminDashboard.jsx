@@ -537,11 +537,6 @@ export default function AdminDashboard() {
         setIsOrderMenuModalOpen(false);
         setEditingReservation(null);
         setOrderMenuItems([]);
-
-        // Sinkron ulang belakangan supaya UI lokal tidak ketimpa data lama sesaat.
-        setTimeout(() => {
-            fetchReservations();
-        }, 600);
     };
 
     useEffect(() => {
@@ -661,6 +656,21 @@ export default function AdminDashboard() {
       return ids.map(id => products.find(p => p.id === id)?.name).filter(Boolean).join(", ");
   };
 
+    const normalizeCategory = (value) => String(value || "").trim().toLowerCase();
+
+    const packageFoodProducts = products.filter((product) => {
+        const category = normalizeCategory(product?.category);
+        return category === "food" || category === "snack";
+    });
+
+    const packageDrinkProducts = products.filter((product) => {
+        const category = normalizeCategory(product?.category);
+        return category === "coffee"
+            || category === "non-coffee"
+            || category === "non coffee"
+            || category === "non-coffe";
+    });
+
     const formatCurrency = (amount) => `Rp ${Number(amount || 0).toLocaleString("id-ID")}`;
 
     const getReservationStatusMeta = (status) => {
@@ -749,9 +759,24 @@ export default function AdminDashboard() {
     const getReservationItemSummary = (reservation) => {
         const items = reservation?.items || [];
 
+        let subMenuTypes = 0;
+        let subMenuQty = 0;
+
+        items.forEach((item) => {
+            const qty = parseItemQty(item?.qty);
+            if (qty > 0) {
+                const subMenus = extractSubMenusFromItem(item);
+                subMenuTypes += subMenus.length;
+                subMenuQty += subMenus.length * qty;
+            }
+        });
+
+        const mainItemTypes = items.length;
+        const mainQty = items.reduce((sum, item) => sum + parseItemQty(item?.qty), 0);
+
         return {
-            itemTypes: items.length,
-            totalQty: items.reduce((sum, item) => sum + parseItemQty(item?.qty), 0)
+            itemTypes: mainItemTypes + subMenuTypes,
+            totalQty: mainQty + subMenuQty
         };
     };
 
@@ -774,9 +799,9 @@ export default function AdminDashboard() {
     const menuTotalsMap = summaryReservations.reduce((acc, reservation) => {
         (reservation.items || []).forEach((item) => {
             const itemName = String(item?.name || "").trim();
-            if (!itemName) return;
             const qty = parseItemQty(item?.qty);
             if (!qty) return;
+            if (!itemName) return;
             acc[itemName] = (acc[itemName] || 0) + qty;
         });
         return acc;
@@ -816,13 +841,8 @@ export default function AdminDashboard() {
         (reservation.items || []).forEach((item) => {
             const qty = parseItemQty(item?.qty);
             if (!qty) return;
-            const selectionsText = String(item?.selections || "").trim();
-            if (!selectionsText) return;
-
-            const subMenus = selectionsText
-                .split(/\s*&\s*|\s*,\s*|\s*\|\s*/)
-                .map((text) => text.trim())
-                .filter(Boolean);
+            const subMenus = extractSubMenusFromItem(item);
+            if (!subMenus.length) return;
 
             subMenus.forEach((subMenu, index) => {
                 const categoryType = categorizeSelectionName(subMenu, index, subMenus.length);
@@ -987,7 +1007,7 @@ export default function AdminDashboard() {
                                 )}
                             </div>
                             <div style={{background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:'8px', padding:'12px'}}>
-                                <div style={{fontWeight:600, marginBottom:'8px'}}>Sub Menu Makanan</div>
+                                <div style={{fontWeight:600, marginBottom:'8px'}}>Opsional Makanan</div>
                                 {foodSubMenuTotals.length > 0 ? (
                                     foodSubMenuTotals.map(([name, qty]) => (
                                         <div key={name} style={{display:'flex', justifyContent:'space-between', gap:'10px', fontSize:'0.9em', marginBottom:'4px'}}>
@@ -996,11 +1016,11 @@ export default function AdminDashboard() {
                                         </div>
                                     ))
                                 ) : (
-                                    <div style={{color:'#6b7280', fontSize:'0.9em'}}>Belum ada sub menu makanan pada filter tanggal ini.</div>
+                                    <div style={{color:'#6b7280', fontSize:'0.9em'}}>Belum ada item opsional makanan pada filter tanggal ini.</div>
                                 )}
                             </div>
                             <div style={{background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:'8px', padding:'12px'}}>
-                                <div style={{fontWeight:600, marginBottom:'8px'}}>Sub Menu Minuman</div>
+                                <div style={{fontWeight:600, marginBottom:'8px'}}>Opsional Minuman</div>
                                 {drinkSubMenuTotals.length > 0 ? (
                                     drinkSubMenuTotals.map(([name, qty]) => (
                                         <div key={name} style={{display:'flex', justifyContent:'space-between', gap:'10px', fontSize:'0.9em', marginBottom:'4px'}}>
@@ -1009,7 +1029,7 @@ export default function AdminDashboard() {
                                         </div>
                                     ))
                                 ) : (
-                                    <div style={{color:'#6b7280', fontSize:'0.9em'}}>Belum ada sub menu minuman pada filter tanggal ini.</div>
+                                    <div style={{color:'#6b7280', fontSize:'0.9em'}}>Belum ada item opsional minuman pada filter tanggal ini.</div>
                                 )}
                             </div>
                         </div>
@@ -1071,37 +1091,52 @@ export default function AdminDashboard() {
                                         </div>
 
                                         <div className="reservation-meta-box">
-                                            <div className="reservation-meta-label">Ringkasan Item</div>
-                                            <div className="reservation-meta-note">
-                                                {reservationItemSummary.itemTypes > 0
-                                                    ? `${reservationItemSummary.itemTypes} jenis menu`
-                                                    : "Belum ada item"}
-                                            </div>
-                                            <div className="reservation-meta-stats">
-                                                <span className="reservation-meta-stat-chip">
-                                                    {reservationItemSummary.itemTypes} jenis
-                                                </span>
-                                                <span className="reservation-meta-stat-chip">
-                                                    {reservationItemSummary.totalQty} porsi
-                                                </span>
-                                            </div>
-                                            {reservationMenuTotals.length > 0 && (
-                                                <div className="reservation-submenu-summary">
-                                                    {reservationMenuTotals.slice(0, 4).map(([menuName, totalQty]) => (
-                                                        <span key={menuName} className="reservation-submenu-summary-chip">
-                                                            {menuName} x{totalQty}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            )}
-                                            {reservationSubMenuTotals.length > 0 && (
-                                                <div className="reservation-submenu-summary">
-                                                    {reservationSubMenuTotals.slice(0, 4).map(([subMenuName, totalQty]) => (
-                                                        <span key={subMenuName} className="reservation-submenu-summary-chip">
-                                                            {subMenuName} x{totalQty}
-                                                        </span>
-                                                    ))}
-                                                </div>
+                                            <div className="reservation-meta-label">Ringkasan Menu</div>
+                                            {reservationSubMenuTotals.length > 0 ? (() => {
+                                                const foodOps = [];
+                                                const drinkOps = [];
+
+                                                reservationSubMenuTotals.forEach(([subMenuName, totalQty]) => {
+                                                    const categoryOrEmpty = productCategoryByName[String(subMenuName).toLowerCase()] || "";
+                                                    const isDrink = categoryOrEmpty === "coffee" || categoryOrEmpty === "non-coffee" || categoryOrEmpty === "non-coffe";
+                                                    if (isDrink) {
+                                                        drinkOps.push({name: subMenuName, qty: totalQty});
+                                                    } else {
+                                                        foodOps.push({name: subMenuName, qty: totalQty});
+                                                    }
+                                                });
+
+                                                return (
+                                                    <div style={{display:'flex', flexDirection:'column', gap:'8px', marginTop:'8px'}}>
+                                                        {foodOps.length > 0 && (
+                                                            <div>
+                                                                <div style={{fontSize:'0.75em', fontWeight:600, color:'#b45309', marginBottom:'4px'}}>MAKANAN</div>
+                                                                <div className="reservation-submenu-summary" style={{marginTop:0}}>
+                                                                    {foodOps.map(op => (
+                                                                        <span key={op.name} className="reservation-submenu-summary-chip">
+                                                                            {op.name} x{op.qty}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        
+                                                        {drinkOps.length > 0 && (
+                                                            <div>
+                                                                <div style={{fontSize:'0.75em', fontWeight:600, color:'#0369a1', marginBottom:'4px'}}>MINUMAN</div>
+                                                                <div className="reservation-submenu-summary" style={{marginTop:0}}>
+                                                                    {drinkOps.map(op => (
+                                                                        <span key={op.name} className="reservation-submenu-summary-chip" style={{background:'#e0f2fe', color:'#0284c7', borderColor:'#bae6fd'}}>
+                                                                            {op.name} x{op.qty}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })() : (
+                                                 <div className="reservation-meta-note">Menu tidak menggunakan item opsional.</div>
                                             )}
                                         </div>
                                     </div>
@@ -1308,17 +1343,23 @@ export default function AdminDashboard() {
                             <div className="form-group">
                                 <label className="label">Opsi Makanan (Pelanggan boleh pilih apa saja?)</label>
                                 <div style={{maxHeight:'150px', overflowY:'auto', border:'1px solid #ddd', padding:'10px', borderRadius:'8px'}}>
-                                    {products.filter(p => p.category === 'Food' || p.category === 'Snack').map(p => (
+                                    {packageFoodProducts.map(p => (
                                         <label key={p.id} style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'5px'}}><input type="checkbox" checked={formData.foodOptions?.includes(p.id)} onChange={(e) => handleOptionChange('foodOptions', p.id, e.target.checked)} />{p.name}</label>
                                     ))}
+                                    {packageFoodProducts.length === 0 && (
+                                        <div style={{fontSize:'0.85em', color:'#6b7280'}}>Belum ada menu kategori Food/Snack yang tersedia.</div>
+                                    )}
                                 </div>
                             </div>
                             <div className="form-group">
                                 <label className="label">Opsi Minuman (Pelanggan boleh pilih apa saja?)</label>
                                 <div style={{maxHeight:'150px', overflowY:'auto', border:'1px solid #ddd', padding:'10px', borderRadius:'8px'}}>
-                                    {products.filter(p => p.category === 'Coffee' || p.category === 'Non-Coffee').map(p => (
+                                    {packageDrinkProducts.map(p => (
                                         <label key={p.id} style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'5px'}}><input type="checkbox" checked={formData.drinkOptions?.includes(p.id)} onChange={(e) => handleOptionChange('drinkOptions', p.id, e.target.checked)} />{p.name}</label>
                                     ))}
+                                    {packageDrinkProducts.length === 0 && (
+                                        <div style={{fontSize:'0.85em', color:'#6b7280'}}>Belum ada menu kategori Coffee/Non-Coffee yang tersedia.</div>
+                                    )}
                                 </div>
                             </div>
                         </>
@@ -1401,12 +1442,31 @@ export default function AdminDashboard() {
                                         </div>
                                     </div>
                                     <div className="form-group">
-                                        <label className="label">Pilihan (opsional)</label>
-                                        <input
-                                            className="input"
-                                            value={item.selections}
-                                            onChange={(e) => handleOrderMenuItemChange(index, "selections", e.target.value)}
-                                        />
+                                        <label className="label">Pilihan (opsional dari Menu Master)</label>
+                                        <div style={{maxHeight:'150px', overflowY:'auto', border:'1px solid #ddd', padding:'10px', borderRadius:'8px', background:'#fff'}}>
+                                            {products.length > 0 ? products.map(p => {
+                                                const selectedList = extractSubMenusFromItem(item);
+                                                const isSelected = selectedList.includes(p.name);
+                                                return (
+                                                    <label key={p.id} style={{display:'flex', alignItems:'center', gap:'10px', marginBottom:'5px', fontSize:'0.9em', cursor:'pointer'}}>
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={isSelected}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    handleOrderMenuItemChange(index, "selections", [...selectedList, p.name].join(", "));
+                                                                } else {
+                                                                    handleOrderMenuItemChange(index, "selections", selectedList.filter(n => n !== p.name).join(", "));
+                                                                }
+                                                            }}
+                                                        />
+                                                        {p.name}
+                                                    </label>
+                                                );
+                                            }) : (
+                                                <div style={{fontSize:'0.85em', color:'#6b7280'}}>Belum ada data menu master.</div>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="form-group">
                                         <label className="label">Catatan (opsional)</label>
