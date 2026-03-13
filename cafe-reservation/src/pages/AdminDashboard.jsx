@@ -295,18 +295,6 @@ export default function AdminDashboard() {
         if (!pastReservationList.length) return;
 
         try {
-            // Baca semua lock sekaligus agar tidak tembak banyak getDoc satu per satu
-            const lockEntries = pastReservationList
-                .filter(r => r?.date && r?.spotId)
-                .map(r => ({
-                    reservation: r,
-                    lockRef: doc(db, "reservationLocks", buildReservationLockId(r.date, r.spotId))
-                }));
-
-            const lockSnaps = lockEntries.length
-                ? await Promise.all(lockEntries.map(e => getDoc(e.lockRef)))
-                : [];
-
             // Arsipkan dan hapus semua reservasi secara paralel
             await Promise.all(pastReservationList.map(reservation =>
                 Promise.all([
@@ -320,14 +308,15 @@ export default function AdminDashboard() {
                 ])
             ));
 
-            // Lepas lock yang dimiliki oleh reservasi ini, secara paralel
+            // Lepas lock semua reservasi lama tanpa baca (tanggal sudah lewat, aman dirilis langsung)
             await Promise.all(
-                lockEntries
-                    .filter((entry, i) => {
-                        const snap = lockSnaps[i];
-                        return snap?.exists() && snap.data()?.reservationId === entry.reservation.id;
-                    })
-                    .map(entry => setDoc(entry.lockRef, { status: "rejected", updatedAt: new Date() }, { merge: true }))
+                pastReservationList
+                    .filter(r => r?.date && r?.spotId)
+                    .map(r => setDoc(
+                        doc(db, "reservationLocks", buildReservationLockId(r.date, r.spotId)),
+                        { status: "rejected", updatedAt: new Date() },
+                        { merge: true }
+                    ))
             );
 
             const cleanedIds = new Set(pastReservationList.map(r => r.id));

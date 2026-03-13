@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 // Konfigurasi dari Firebase Console
@@ -17,5 +17,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Export service supaya bisa dipakai di file lain
-export const db = getFirestore(app); // Database reservasi
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache() // cache IndexedDB → kurangi reads berulang
+});
 export const auth = getAuth(app);    // Login admin
