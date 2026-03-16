@@ -8,6 +8,7 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState("orders");
   const [reservations, setReservations] = useState([]);
     const [deletedReservations, setDeletedReservations] = useState([]);
+        const [selectedDeletedReservationIds, setSelectedDeletedReservationIds] = useState([]);
     const [restoreDatesById, setRestoreDatesById] = useState({});
     const [dateSort, setDateSort] = useState("newest");
     const [dateFilter, setDateFilter] = useState("");
@@ -236,6 +237,54 @@ export default function AdminDashboard() {
         if (!confirm("Hapus permanen dari riwayat hapus? Tindakan ini tidak bisa dibatalkan.")) return;
         await deleteDoc(doc(db, "deletedReservations", id));
         setDeletedReservations(prev => prev.filter(r => r.id !== id));
+        setSelectedDeletedReservationIds(prev => prev.filter((itemId) => itemId !== id));
+        setRestoreDatesById((prev) => {
+            const next = { ...prev };
+            delete next[id];
+            return next;
+        });
+    };
+
+    const handleToggleDeletedReservationSelection = (id) => {
+        setSelectedDeletedReservationIds((prev) => {
+            if (prev.includes(id)) {
+                return prev.filter((itemId) => itemId !== id);
+            }
+            return [...prev, id];
+        });
+    };
+
+    const handleToggleSelectAllDeletedReservations = () => {
+        if (selectedDeletedReservationIds.length === deletedReservations.length) {
+            setSelectedDeletedReservationIds([]);
+            return;
+        }
+
+        setSelectedDeletedReservationIds(deletedReservations.map((reservation) => reservation.id));
+    };
+
+    const handleBulkPermanentDeleteFromTrash = async () => {
+        if (!selectedDeletedReservationIds.length) {
+            alert("Pilih minimal 1 pesanan untuk dihapus permanen.");
+            return;
+        }
+
+        if (!confirm(`Hapus permanen ${selectedDeletedReservationIds.length} pesanan dari riwayat hapus?`)) return;
+
+        await Promise.all(
+            selectedDeletedReservationIds.map((id) => deleteDoc(doc(db, "deletedReservations", id)))
+        );
+
+        const selectedSet = new Set(selectedDeletedReservationIds);
+        setDeletedReservations((prev) => prev.filter((reservation) => !selectedSet.has(reservation.id)));
+        setSelectedDeletedReservationIds([]);
+        setRestoreDatesById((prev) => {
+            const next = { ...prev };
+            selectedDeletedReservationIds.forEach((id) => {
+                delete next[id];
+            });
+            return next;
+        });
     };
 
     const handleRestoreDeletedReservation = async (id) => {
@@ -288,6 +337,7 @@ export default function AdminDashboard() {
 
         const restoredEntry = { id, ...restReservationData, date: selectedRestoreDate, restoredAt: new Date() };
         setDeletedReservations(prev => prev.filter(r => r.id !== id));
+        setSelectedDeletedReservationIds(prev => prev.filter((itemId) => itemId !== id));
         setReservations(prev => [restoredEntry, ...prev]);
     };
 
@@ -550,6 +600,14 @@ export default function AdminDashboard() {
             handleCleanupPastReservations(pastReservations);
         }
     }, [reservations, cleanupPromptShown]);
+
+    useEffect(() => {
+        setSelectedDeletedReservationIds((prev) => {
+            if (!prev.length) return prev;
+            const deletedIdSet = new Set(deletedReservations.map((reservation) => reservation.id));
+            return prev.filter((id) => deletedIdSet.has(id));
+        });
+    }, [deletedReservations]);
 
   const handleDeleteItem = async (type, id) => { 
       if(confirm(`Yakin hapus data ini?`)) { 
@@ -924,6 +982,24 @@ export default function AdminDashboard() {
                             <div style={{fontSize:'0.9em', color:'#6b7280'}}>Belum ada pesanan di riwayat hapus.</div>
                         ) : (
                             <div style={{display:'grid', gap:'10px'}}>
+                                <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px', flexWrap:'wrap', border:'1px solid #e5e7eb', background:'#f8fafc', borderRadius:'8px', padding:'10px 12px'}}>
+                                    <label style={{display:'flex', alignItems:'center', gap:'8px', fontSize:'0.9em', cursor:'pointer'}}>
+                                        <input
+                                            type="checkbox"
+                                            checked={deletedReservations.length > 0 && selectedDeletedReservationIds.length === deletedReservations.length}
+                                            onChange={handleToggleSelectAllDeletedReservations}
+                                        />
+                                        Pilih Semua ({selectedDeletedReservationIds.length}/{deletedReservations.length})
+                                    </label>
+                                    <button
+                                        onClick={handleBulkPermanentDeleteFromTrash}
+                                        className="btn btn-danger"
+                                        style={{padding:'8px 12px'}}
+                                        disabled={selectedDeletedReservationIds.length === 0}
+                                    >
+                                        Hapus Permanen Terpilih
+                                    </button>
+                                </div>
                                 {deletedReservations
                                     .sort((a, b) => {
                                         const aTs = a?.deletedAt?.toMillis?.() || 0;
@@ -933,10 +1009,18 @@ export default function AdminDashboard() {
                                     .map((res) => (
                                         <div key={res.id} style={{border:'1px solid #e5e7eb', borderRadius:'8px', padding:'10px'}}>
                                             <div style={{display:'flex', justifyContent:'space-between', gap:'8px', alignItems:'center', flexWrap:'wrap'}}>
-                                                <div>
+                                                <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedDeletedReservationIds.includes(res.id)}
+                                                        onChange={() => handleToggleDeletedReservationSelection(res.id)}
+                                                        aria-label={`Pilih pesanan ${res.customerName || "Tanpa Nama"}`}
+                                                    />
+                                                    <div>
                                                     <b>{res.customerName || "Tanpa Nama"}</b>
                                                     <div style={{fontSize:'0.85em', color:'#6b7280'}}>
                                                         {res.time || "-"} | {res.date || "-"} | {res.spotName || "Meja Standar"}
+                                                    </div>
                                                     </div>
                                                 </div>
                                                 <span className="badge badge-red">Terhapus</span>
