@@ -118,16 +118,33 @@ export default function AdminDashboard() {
         return String(value);
     };
 
+    const normalizeSearchText = (value) =>
+        String(value || "")
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, " ")
+            .trim();
+
+    const toDigitsOnly = (value) => String(value || "").replace(/\D+/g, "");
+
     const matchesSearch = (queryText, ...values) => {
-        const normalizedQuery = String(queryText || "").trim().toLowerCase();
+        const normalizedQuery = normalizeSearchText(queryText);
         if (!normalizedQuery) return true;
 
         const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
-        const haystack = values
-            .map((value) => buildSearchableText(value).toLowerCase())
-            .join(" ");
+        const haystackRaw = values.map((value) => buildSearchableText(value)).join(" ");
+        const haystackText = normalizeSearchText(haystackRaw);
+        const haystackDigits = toDigitsOnly(haystackRaw);
 
-        return tokens.every((token) => haystack.includes(token));
+        return tokens.every((token) => {
+            if (haystackText.includes(token)) return true;
+
+            const tokenDigits = toDigitsOnly(token);
+            if (tokenDigits.length >= 2 && haystackDigits.includes(tokenDigits)) {
+                return true;
+            }
+
+            return false;
+        });
     };
 
   const fetchAllData = async () => {
