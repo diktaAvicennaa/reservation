@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { db, auth } from "../firebase";
-import { collection, getDocs, updateDoc, doc, deleteDoc, addDoc, deleteField, query, where, setDoc, getDoc, limit } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, deleteDoc, addDoc, deleteField, query, where, setDoc, getDoc, limit, runTransaction } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
 export default function AdminDashboard() {
@@ -434,6 +434,8 @@ export default function AdminDashboard() {
     const spot = spots.find(s => s.id === spotId);
     if (spot) {
         const currentReservation = reservations.find(r => r.id === id);
+                if (!currentReservation) return;
+
         if (!currentReservation?.date || !currentReservation?.time) {
             await updateDoc(doc(db, "reservations", id), { spotId: spot.id, spotName: spot.name });
 
@@ -462,13 +464,100 @@ export default function AdminDashboard() {
             where("spotId", "==", spot.id)
         );
         const conflictSnap = await getDocs(conflictQuery);
-        const hasConflict = conflictSnap.docs.some(d => {
+        const conflictingDoc = conflictSnap.docs.find(d => {
             const data = d.data();
             return d.id !== id && data.status !== 'rejected';
         });
+        const hasConflict = Boolean(conflictingDoc);
 
         if (hasConflict) {
-            alert(`Tempat ${spot.name} sudah terpakai di ${currentReservation.date} jam ${currentReservation.time}.`);
+            const conflictingReservation = { id: conflictingDoc.id, ...conflictingDoc.data() };
+
+            if (!currentReservation.spotId || !currentReservation.spotName) {
+                alert(`Tempat ${spot.name} sudah terpakai di ${currentReservation.date} jam ${currentReservation.time}.`);
+                return;
+            }
+
+            const hasAcceptedSwap = confirm(
+                `Tempat ${spot.name} dipakai oleh ${conflictingReservation.customerName || "pesanan lain"}.\n` +
+                `Tukar tempat sekarang?\n` +
+                `- ${currentReservation.customerName || "Pesanan ini"} => ${spot.name}\n` +
+                `- ${conflictingReservation.customerName || "Pesanan lain"} => ${currentReservation.spotName}`
+            );
+
+            if (!hasAcceptedSwap) return;
+
+            const reverseConflictQuery = query(
+                collection(db, "reservations"),
+                where("date", "==", currentReservation.date),
+                where("time", "==", currentReservation.time),
+                where("spotId", "==", currentReservation.spotId)
+            );
+            const reverseConflictSnap = await getDocs(reverseConflictQuery);
+            const hasThirdPartyConflict = reverseConflictSnap.docs.some((d) => {
+                const data = d.data();
+                return d.id !== id && d.id !== conflictingReservation.id && data.status !== "rejected";
+            });
+
+            if (hasThirdPartyConflict) {
+                alert(`Gagal swap: tempat ${currentReservation.spotName} sudah dipakai pesanan lain pada jam yang sama.`);
+                return;
+            }
+
+            const previousSpotId = currentReservation.spotId;
+            const previousSpotName = currentReservation.spotName;
+
+            await runTransaction(db, async (transaction) => {
+                transaction.update(doc(db, "reservations", currentReservation.id), {
+                    spotId: spot.id,
+                    spotName: spot.name
+                });
+                transaction.update(doc(db, "reservations", conflictingReservation.id), {
+                    spotId: previousSpotId,
+                    spotName: previousSpotName
+                });
+            });
+
+            await Promise.all([
+                syncReservationLock({
+                    reservationId: currentReservation.id,
+                    date: currentReservation.date,
+                    time: currentReservation.time,
+                    spotId: spot.id,
+                    spotName: spot.name,
+                    status: currentReservation.status
+                }),
+                syncReservationLock({
+                    reservationId: conflictingReservation.id,
+                    date: conflictingReservation.date,
+                    time: conflictingReservation.time,
+                    spotId: previousSpotId,
+                    spotName: previousSpotName,
+                    status: conflictingReservation.status
+                })
+            ]);
+
+            setReservations((prev) => prev.map((reservation) => {
+                if (reservation.id === currentReservation.id) {
+                    return {
+                        ...reservation,
+                        spotId: spot.id,
+                        spotName: spot.name
+                    };
+                }
+
+                if (reservation.id === conflictingReservation.id) {
+                    return {
+                        ...reservation,
+                        spotId: previousSpotId,
+                        spotName: previousSpotName
+                    };
+                }
+
+                return reservation;
+            }));
+
+            alert("Berhasil menukar tempat antar pesanan.");
             return;
         }
 
