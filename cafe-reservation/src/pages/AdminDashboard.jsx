@@ -12,6 +12,7 @@ export default function AdminDashboard() {
     const [restoreDatesById, setRestoreDatesById] = useState({});
     const [dateSort, setDateSort] = useState("newest");
     const [dateFilter, setDateFilter] = useState("");
+        const [searchQuery, setSearchQuery] = useState("");
   const [packages, setPackages] = useState([]);
   const [products, setProducts] = useState([]);
   const [spots, setSpots] = useState([]); 
@@ -108,6 +109,25 @@ export default function AdminDashboard() {
             }, {});
         }
         return value;
+    };
+
+    const buildSearchableText = (value) => {
+        if (value === null || value === undefined) return "";
+        if (Array.isArray(value)) return value.map((item) => buildSearchableText(item)).join(" ");
+        if (typeof value === "object") return Object.values(value).map((item) => buildSearchableText(item)).join(" ");
+        return String(value);
+    };
+
+    const matchesSearch = (queryText, ...values) => {
+        const normalizedQuery = String(queryText || "").trim().toLowerCase();
+        if (!normalizedQuery) return true;
+
+        const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
+        const haystack = values
+            .map((value) => buildSearchableText(value).toLowerCase())
+            .join(" ");
+
+        return tokens.every((token) => haystack.includes(token));
     };
 
   const fetchAllData = async () => {
@@ -853,9 +873,24 @@ export default function AdminDashboard() {
         return String(a?.id || "").localeCompare(String(b?.id || ""));
     });
 
-    const filteredReservations = dateFilter
+    const dateFilteredReservations = dateFilter
         ? sortedReservations.filter((reservation) => reservation.date === dateFilter)
         : sortedReservations;
+
+    const filteredReservations = dateFilteredReservations.filter((reservation) =>
+        matchesSearch(
+            searchQuery,
+            reservation.customerName,
+            reservation.customerPhone,
+            reservation.date,
+            reservation.time,
+            reservation.spotName,
+            reservation.status,
+            reservation.partySize,
+            reservation.totalPrice,
+            reservation.items || []
+        )
+    );
 
     const summaryReservations = filteredReservations.filter(
         (reservation) => reservation.status !== "rejected"
@@ -1002,6 +1037,69 @@ export default function AdminDashboard() {
     const foodSubMenuTotals = Object.entries(foodSubMenuTotalsMap).sort((a, b) => b[1] - a[1]);
     const drinkSubMenuTotals = Object.entries(drinkSubMenuTotalsMap).sort((a, b) => b[1] - a[1]);
 
+    const filteredPastReservations = pastReservations.filter((reservation) =>
+        matchesSearch(
+            searchQuery,
+            reservation.customerName,
+            reservation.customerPhone,
+            reservation.date,
+            reservation.time,
+            reservation.spotName,
+            reservation.status,
+            reservation.partySize,
+            reservation.totalPrice,
+            reservation.items || []
+        )
+    );
+
+    const filteredDeletedReservations = deletedReservations.filter((reservation) =>
+        matchesSearch(
+            searchQuery,
+            reservation.customerName,
+            reservation.customerPhone,
+            reservation.date,
+            reservation.time,
+            reservation.spotName,
+            reservation.status,
+            reservation.partySize,
+            reservation.totalPrice,
+            reservation.deletedReason,
+            reservation.items || []
+        )
+    );
+
+    const filteredPackages = packages.filter((pkg) =>
+        matchesSearch(
+            searchQuery,
+            pkg.name,
+            pkg.description,
+            pkg.price,
+            pkg.isAvailable ? "tersedia" : "habis",
+            getProductNames(pkg.foodOptions),
+            getProductNames(pkg.drinkOptions)
+        )
+    );
+
+    const filteredSpots = spots.filter((spot) =>
+        matchesSearch(
+            searchQuery,
+            spot.name,
+            spot.min,
+            spot.isAvailable ? "buka" : "tutup",
+            spot.unavailableDates || []
+        )
+    );
+
+    const filteredProducts = products.filter((product) =>
+        matchesSearch(
+            searchQuery,
+            product.name,
+            product.category,
+            product.price,
+            product.isAvailable ? "ready" : "habis"
+        )
+    );
+
   return (
     <div style={{minHeight:'100vh', paddingBottom:'50px', background:'#f4f7f6'}}>
       <div className="navbar">
@@ -1017,6 +1115,26 @@ export default function AdminDashboard() {
           <button onClick={() => setActiveTab('packages')} className={`btn ${activeTab === 'packages' ? 'btn-primary' : 'btn-ghost'}`} style={{flex:1, whiteSpace:'nowrap'}}>📦 Paket</button>
           <button onClick={() => setActiveTab('spots')} className={`btn ${activeTab === 'spots' ? 'btn-primary' : 'btn-ghost'}`} style={{flex:1, whiteSpace:'nowrap'}}>📍 Tempat</button>
           <button onClick={() => setActiveTab('menu')} className={`btn ${activeTab === 'menu' ? 'btn-primary' : 'btn-ghost'}`} style={{flex:1, whiteSpace:'nowrap'}}>🍔 Menu Master</button>
+        </div>
+
+        <div className="card" style={{marginBottom:'15px', padding:'12px 14px'}}>
+            <div style={{fontWeight:700, color:'#334155', marginBottom:'8px'}}>Pencarian Global</div>
+            <div style={{display:'flex', gap:'8px', alignItems:'center', flexWrap:'wrap'}}>
+                <input
+                    type="text"
+                    className="input"
+                    placeholder="Cari nama pelanggan, no HP, menu, paket, tempat, status, tanggal..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    style={{flex:'1 1 360px', minWidth:'220px'}}
+                />
+                {searchQuery && (
+                    <button className="btn btn-ghost" onClick={() => setSearchQuery("")}>Reset Cari</button>
+                )}
+            </div>
+            <div style={{fontSize:'0.82em', color:'#6b7280', marginTop:'8px'}}>
+                Pencarian aktif di semua tab admin dan mencocokkan banyak kata sekaligus.
+            </div>
         </div>
 
         {/* TAB 1: ORDERS */}
@@ -1042,7 +1160,7 @@ export default function AdminDashboard() {
                         <div className="card" style={{marginBottom:'15px', padding:'14px 16px'}}>
                             <div style={{fontWeight:700, color:'#92400e', marginBottom:'10px'}}>Preview Pesanan Beda Hari</div>
                             <div style={{display:'grid', gap:'8px'}}>
-                                {pastReservations.map((res) => (
+                                {filteredPastReservations.map((res) => (
                                     <div
                                         key={res.id}
                                         style={{display:'grid', gridTemplateColumns:'1.2fr 1fr 1fr auto', gap:'10px', alignItems:'center', border:'1px solid #f3f4f6', borderRadius:'8px', padding:'10px'}}
@@ -1061,6 +1179,9 @@ export default function AdminDashboard() {
                                         </button>
                                     </div>
                                 ))}
+                                {filteredPastReservations.length === 0 && (
+                                    <div style={{fontSize:'0.9em', color:'#6b7280'}}>Tidak ada pesanan beda hari yang cocok dengan pencarian.</div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -1069,6 +1190,8 @@ export default function AdminDashboard() {
                         <div style={{fontWeight:700, color:'#334155', marginBottom:'10px'}}>Riwayat Hapus (Bisa Restore)</div>
                         {deletedReservations.length === 0 ? (
                             <div style={{fontSize:'0.9em', color:'#6b7280'}}>Belum ada pesanan di riwayat hapus.</div>
+                        ) : filteredDeletedReservations.length === 0 ? (
+                            <div style={{fontSize:'0.9em', color:'#6b7280'}}>Tidak ada riwayat hapus yang cocok dengan pencarian.</div>
                         ) : (
                             <div style={{display:'grid', gap:'10px'}}>
                                 <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:'10px', flexWrap:'wrap', border:'1px solid #e5e7eb', background:'#f8fafc', borderRadius:'8px', padding:'10px 12px'}}>
@@ -1089,7 +1212,7 @@ export default function AdminDashboard() {
                                         Hapus Permanen Terpilih
                                     </button>
                                 </div>
-                                {deletedReservations
+                                {filteredDeletedReservations
                                     .sort((a, b) => {
                                         const aTs = a?.deletedAt?.toMillis?.() || 0;
                                         const bTs = b?.deletedAt?.toMillis?.() || 0;
@@ -1384,7 +1507,7 @@ export default function AdminDashboard() {
             <div>
                 <button onClick={()=>handleOpenModal('package')} className="btn btn-primary btn-block mb-4" style={{padding: '15px', fontSize: '1.1em'}}>+ BUAT PAKET BARU</button>
                 <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))', gap:'20px'}}>
-                    {packages.map((p) => (
+                    {filteredPackages.map((p) => (
                         <div key={p.id} className="card" style={{borderTop: '5px solid #047857', padding: '20px'}}>
                             
                             <div>
@@ -1406,6 +1529,9 @@ export default function AdminDashboard() {
                             </div>
                         </div>
                     ))}
+                    {filteredPackages.length === 0 && (
+                        <div className="text-center" style={{padding:'20px', color:'#888', width:'100%'}}>Tidak ada paket yang cocok dengan pencarian.</div>
+                    )}
                 </div>
             </div>
         )}
@@ -1415,7 +1541,7 @@ export default function AdminDashboard() {
             <div>
                 <button onClick={()=>handleOpenModal('spot')} className="btn btn-primary btn-block mb-4" style={{padding: '15px', fontSize: '1.1em'}}>+ TAMBAH TEMPAT BARU</button>
                 <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(250px, 1fr))', gap:'20px'}}>
-                    {spots.map((s) => (
+                    {filteredSpots.map((s) => (
                         <div key={s.id} className="card" style={{borderTop: '5px solid #F59E0B'}}>
                             {/* Menampilkan Gambar Tempat */}
                             {s.img ? (
@@ -1438,6 +1564,7 @@ export default function AdminDashboard() {
                         </div>
                     ))}
                     {spots.length === 0 && <div className="text-center" style={{padding:'20px', color:'#888', width: '100%'}}>Belum ada data tempat. Tambahkan minimal 1 agar pelanggan bisa memesan.</div>}
+                    {spots.length > 0 && filteredSpots.length === 0 && <div className="text-center" style={{padding:'20px', color:'#888', width: '100%'}}>Tidak ada tempat yang cocok dengan pencarian.</div>}
                 </div>
             </div>
         )}
@@ -1447,7 +1574,7 @@ export default function AdminDashboard() {
             <div>
                 <button onClick={()=>handleOpenModal('menu')} className="btn btn-secondary btn-block mb-4" style={{padding: '15px', fontSize: '1.1em'}}>+ TAMBAH MENU MASTER</button>
                 <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(250px, 1fr))', gap:'20px'}}>
-                    {products.map((p) => (
+                    {filteredProducts.map((p) => (
                         <div key={p.id} className="card" style={{borderTop: '5px solid #10B981'}}>
                             <div>
                                 <h3 style={{margin:0}}>{p.name}</h3>
@@ -1463,6 +1590,9 @@ export default function AdminDashboard() {
                             </div>
                         </div>
                     ))}
+                    {filteredProducts.length === 0 && (
+                        <div className="text-center" style={{padding:'20px', color:'#888', width:'100%'}}>Tidak ada menu master yang cocok dengan pencarian.</div>
+                    )}
                 </div>
             </div>
         )}
